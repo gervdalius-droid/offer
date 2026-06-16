@@ -78,7 +78,9 @@
   .note b{color:var(--amber-d)}
   .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
   .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:11px}
-  @media(max-width:760px){.grid2,.grid3{grid-template-columns:1fr}}
+  .grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:11px}
+  @media(max-width:980px){.grid4{grid-template-columns:repeat(2,1fr)}}
+  @media(max-width:760px){.grid2,.grid3,.grid4{grid-template-columns:1fr}}
   /* cabinet layout */
   .cabgrid{display:grid;grid-template-columns:1fr 320px;gap:16px}
   @media(max-width:900px){.cabgrid{grid-template-columns:1fr}}
@@ -389,15 +391,13 @@
             <div style="display:flex;gap:8px;flex-wrap:wrap">
               <button class="btn sm" onclick="plAddRun('base')" data-i="plAddBase">＋ Pastatoma</button>
               <button class="btn sm" onclick="plAddRun('wall')" data-i="plAddWall">＋ Pakabinama</button>
+              <button class="btn sm" onclick="plAddRun('tall')" data-i="plAddTall">＋ Aukšta spinta</button>
             </div>
             <div class="grid2" style="margin-top:12px">
               <label class="f"><span class="l" data-i="plCorners">Kampai (L/U) vnt</span><input type="number" id="pl_corners" min="0" oninput="plv('corners',this.value)"></label>
               <div></div>
             </div>
             <div class="note" data-i="plCornerNote" style="margin-top:8px;font-size:11px">Kampų skaičius: L formos = 1, U formos = 2. Kiekvienas kampas prideda aklinos kampinės spintos pertvarą. Sekcijų ilgius matuokite iki kampo.</div>
-            <div class="eyebrow" data-i="plTall" style="margin:16px 0 8px">Aukštos spintos</div>
-            <div id="plTallBox"></div>
-            <button class="btn sm" onclick="plAddTall()" data-i="plAddTall" style="margin-top:4px">＋ Aukšta spinta</button>
           </div>
         </div>
         <div class="card">
@@ -642,10 +642,10 @@ const DEFAULT_STATE=()=>({v:2,projectName:"",
 function DEFAULT_PRELIM(){return{
   runs:[
     {type:'base', length:3000, height:760, depth:560, units:5, shelves:3, vis:0},
-    {type:'wall', length:2400, height:720, depth:330, units:4, shelves:4, vis:0}
+    {type:'wall', length:2400, height:720, depth:330, units:4, shelves:4, vis:0},
+    {type:'tall', qty:1, width:600, height:2100, depth:580, shelves:4, partitions:0, drawers:0, doors:2, vis:0}
   ],
   corners:0,
-  tall:[{n:1,w:600,h:2100,d:580,shelves:4,partitions:0,drawers:0,doors:2,vis:0}],
   appliances:{dw:true,dwW:600,dwPanel:true,oven:1,fridge:true,fridgeInt:true},
   sys:{drawers:8,doors:6,innerDrawers:0,hingesPerDoor:2,drawerBoxH:140},
   mat:{carc:8,facade:29,back:5},
@@ -666,12 +666,13 @@ function normalizeState(){
   S.rates.accUnit=Object.assign({led:30,ledBase:30,hk:70,hl:100,hf:110,tandem:40,accDrawer:80,shoeDrawer:80,holes:30},S.rates.accUnit||{});
   S.quote=S.quote||{};if(!Array.isArray(S.quote.lineItems))S.quote.lineItems=[];if(!Array.isArray(S.quote.pdfImages))S.quote.pdfImages=[];
   const _plRaw=S.prelim||{}; const _plHadRuns=Array.isArray(_plRaw.runs)&&_plRaw.runs.length>0; const _plOldDim=(!_plHadRuns&&_plRaw.dim)?_plRaw.dim:null;
-  S.prelim=Object.assign(DEFAULT_PRELIM(),S.prelim||{});S.prelim.appliances=Object.assign(DEFAULT_PRELIM().appliances,S.prelim.appliances||{});S.prelim.sys=Object.assign(DEFAULT_PRELIM().sys,S.prelim.sys||{});S.prelim.mat=Object.assign(DEFAULT_PRELIM().mat,S.prelim.mat||{});S.prelim.hw=Object.assign(DEFAULT_PRELIM().hw,S.prelim.hw||{});S.prelim.acc=Object.assign(DEFAULT_PRELIM().acc,S.prelim.acc||{});if(!Array.isArray(S.prelim.tall)||!S.prelim.tall.length)S.prelim.tall=DEFAULT_PRELIM().tall;if(!Array.isArray(S.prelim.lineItems))S.prelim.lineItems=[];if(!Array.isArray(S.prelim.pdfImages))S.prelim.pdfImages=[];if(typeof S.prelim.remarks!=='string')S.prelim.remarks="";if(typeof S.prelim.validUntil!=='string')S.prelim.validUntil="";if(S.prelim.margin==null)S.prelim.margin=num(S.quote&&S.quote.margin)||28;if(typeof S.quote.validUntil!=='string')S.quote.validUntil="";
+  S.prelim=Object.assign(DEFAULT_PRELIM(),S.prelim||{});S.prelim.appliances=Object.assign(DEFAULT_PRELIM().appliances,S.prelim.appliances||{});S.prelim.sys=Object.assign(DEFAULT_PRELIM().sys,S.prelim.sys||{});S.prelim.mat=Object.assign(DEFAULT_PRELIM().mat,S.prelim.mat||{});S.prelim.hw=Object.assign(DEFAULT_PRELIM().hw,S.prelim.hw||{});S.prelim.acc=Object.assign(DEFAULT_PRELIM().acc,S.prelim.acc||{});if(!Array.isArray(S.prelim.lineItems))S.prelim.lineItems=[];if(!Array.isArray(S.prelim.pdfImages))S.prelim.pdfImages=[];if(typeof S.prelim.remarks!=='string')S.prelim.remarks="";if(typeof S.prelim.validUntil!=='string')S.prelim.validUntil="";if(S.prelim.margin==null)S.prelim.margin=num(S.quote&&S.quote.margin)||28;if(typeof S.quote.validUntil!=='string')S.quote.validUntil="";
   if(!_plHadRuns){const r=[];if(_plOldDim){const d=_plOldDim;if(num(d.baseL)>0)r.push({type:'base',length:num(d.baseL),height:num(d.baseH)||760,depth:num(d.baseD)||560,units:num(d.baseUnits)||5,shelves:num(d.baseShelves)||0});if(num(d.wallL)>0)r.push({type:'wall',length:num(d.wallL),height:num(d.wallH)||720,depth:num(d.wallD)||330,units:num(d.wallUnits)||4,shelves:num(d.wallShelves)||0});}S.prelim.runs=r.length?r:DEFAULT_PRELIM().runs;}
   if(S.prelim.dim)delete S.prelim.dim;
   if(S.prelim.corners==null)S.prelim.corners=0;
-  (S.prelim.tall||[]).forEach(u=>{if(u.partitions==null)u.partitions=0;if(u.drawers==null)u.drawers=0;if(u.doors==null)u.doors=0;if(u.vis==null)u.vis=0;});
-  (S.prelim.runs||[]).forEach(r=>{if(r.vis==null)r.vis=0;});
+  if(Array.isArray(S.prelim.tall)&&S.prelim.tall.length){S.prelim.tall.forEach(u=>{S.prelim.runs.push({type:'tall',qty:num(u.n)||1,width:num(u.w)||600,height:num(u.h)||2100,depth:num(u.d)||580,shelves:num(u.shelves)||0,partitions:num(u.partitions)||0,drawers:num(u.drawers)||0,doors:num(u.doors)||0,vis:num(u.vis)||0});});}
+  delete S.prelim.tall;
+  (S.prelim.runs||[]).forEach(r=>{if(r.vis==null)r.vis=0;if(r.type==='tall'){if(r.qty==null)r.qty=num(r.n)||1;if(r.width==null)r.width=num(r.w)||600;if(r.partitions==null)r.partitions=0;if(r.drawers==null)r.drawers=0;if(r.doors==null)r.doors=0;if(r.shelves==null)r.shelves=0;}});
   (S.cabinets||[]).forEach(c=>{ if(!c.sections){ c.sections=[Object.assign(newSection(c.mode==='STALČIAI'?'drawers':'doors'),{fill:true,nDoors:Math.max(1,+c.nF||1),nDrawers:Math.max(1,+c.nF||1),hw:c.hw,hinge:c.hw,rail:c.rail,shelves:+c.shelf||0,facadePrice:+c.facadePrice||0,facadeMat:c.facadeMat||''})]; c.defFacadePrice=+c.facadePrice||29; c.carcPrice=+c.carcPrice||8; c.vPartitions=0; }
     if(c.cols==null){ c.cols=Math.max(1,(+c.vPartitions||0)+1); }                 // migrate partitions → columns
     if(!Array.isArray(c.colW)) c.colW=[];
@@ -1534,25 +1535,30 @@ function plGeom(){
     if(isWall){carc+=Lr*D;cut+=2*(Lr+D);band+=Lr;}else{carc+=2*Lr*120;cut+=2*2*(Lr+120);band+=Lr;}
     back+=Lr*H;cut+=2*(Lr+H); Sh=Math.max(0,Math.round(Sh));
     if(Sh>0){carc+=Sh*uw*(D-SET);cut+=Sh*2*(uw+(D-SET));band+=Sh*uw;} fac+=Lr*H;}
-  (P.runs||[]).forEach(rn=>run(num(rn.length),num(rn.height),num(rn.depth),num(rn.units),num(rn.shelves),rn.type==='wall',rn.vis));
-  // representative base run (for drawer boxes & corner allowance)
-  const baseRuns=(P.runs||[]).filter(r=>r.type!=='wall'); const b0=baseRuns[0]||{length:3000,units:5,depth:560,height:760};
+  // representative base run (for drawer boxes & corner allowance) — computed before loop so tall runs can use boxBoard
+  const baseRuns=(P.runs||[]).filter(r=>r.type==='base'); const b0=baseRuns[0]||{length:3000,units:5,depth:560,height:760};
   const uwBase=(num(b0.units)>0?num(b0.length)/Math.max(1,Math.round(num(b0.units))):450);
   const baseD=num(b0.depth)||560, baseH=num(b0.height)||760, hbox=Math.max(60,num(P.sys.drawerBoxH));
   function boxBoard(qty,w,depthMM){qty=Math.max(0,Math.round(qty));if(qty<=0)return;const bdp=Math.max(150,(num(depthMM)||baseD)-30);carc+=qty*(w*bdp+w*hbox+2*bdp*hbox);cut+=qty*(2*(w+bdp)+2*(w+hbox)+2*2*(bdp+hbox));band+=qty*w;}
-  // tall units (each may carry its own shelves, partitions, drawers, doors)
+  // iterate every section: base / wall / tall — one unified list
   let tallDrawers=0, tallDoors=0;
-  (P.tall||[]).forEach(u=>{const n=Math.max(0,Math.round(num(u.n))),w=num(u.w),h=num(u.h),dp=num(u.d),sh=Math.max(0,Math.round(num(u.shelves)));
-    const parts=Math.max(0,Math.round(num(u.partitions))),dr=Math.max(0,Math.round(num(u.drawers))),doors=Math.max(0,Math.round(num(u.doors)));
-    for(let i=0;i<n;i++){if(w<=0||h<=0||dp<=0)continue;
-      carc+=2*h*dp+2*w*dp;cut+=2*2*(h+dp)+2*2*(w+dp);band+=2*h+2*w;back+=w*h;cut+=2*(w+h);
-      if(sh>0){carc+=sh*w*(dp-SET);cut+=sh*2*(w+(dp-SET));band+=sh*w;}
-      if(parts>0){carc+=parts*h*dp;cut+=parts*2*(h+dp);band+=parts*h;}   // vertical partitions
-      boxBoard(dr,Math.max(200,w/(parts+1)-30),dp);                       // drawer boxes in this unit
-      fac+=w*h;}
-    const visN=Math.min(2,Math.max(0,Math.round(num(u.vis))));
-    if(visN>0&&n>0&&w>0&&h>0&&dp>0){carc-=visN*h*dp;fac+=visN*h*dp;}        // visible side panels priced as facade
-    tallDrawers+=n*dr; tallDoors+=n*doors;});
+  (P.runs||[]).forEach(rn=>{
+    if(rn.type==='tall'){
+      const n=Math.max(0,Math.round(num(rn.qty))),w=num(rn.width),h=num(rn.height),dp=num(rn.depth),sh=Math.max(0,Math.round(num(rn.shelves)));
+      const parts=Math.max(0,Math.round(num(rn.partitions))),dr=Math.max(0,Math.round(num(rn.drawers))),doors=Math.max(0,Math.round(num(rn.doors)));
+      for(let i=0;i<n;i++){if(w<=0||h<=0||dp<=0)continue;
+        carc+=2*h*dp+2*w*dp;cut+=2*2*(h+dp)+2*2*(w+dp);band+=2*h+2*w;back+=w*h;cut+=2*(w+h);
+        if(sh>0){carc+=sh*w*(dp-SET);cut+=sh*2*(w+(dp-SET));band+=sh*w;}
+        if(parts>0){carc+=parts*h*dp;cut+=parts*2*(h+dp);band+=parts*h;}     // vertical partitions
+        boxBoard(dr,Math.max(200,w/(parts+1)-30),dp);                         // drawer boxes in this unit
+        fac+=w*h;}
+      const visN=Math.min(2,Math.max(0,Math.round(num(rn.vis))));
+      if(visN>0&&n>0&&w>0&&h>0&&dp>0){carc-=visN*h*dp;fac+=visN*h*dp;}         // visible side panels priced as facade
+      tallDrawers+=n*dr; tallDoors+=n*doors;
+    } else {
+      run(num(rn.length),num(rn.height),num(rn.depth),num(rn.units),num(rn.shelves),rn.type==='wall',rn.vis);
+    }
+  });
   // base/wall drawer boxes (global counts)
   boxBoard(num(P.sys.drawers),uwBase,baseD); boxBoard(num(P.sys.innerDrawers),Math.max(200,uwBase-40),baseD);
   // corner (L/U) allowance: each inside corner adds a blind-corner partition panel
@@ -1561,7 +1567,7 @@ function plGeom(){
   // appliance facade deductions
   const a=P.appliances;
   if(a.dw&&!a.dwPanel)fac-=num(a.dwW)*baseH; fac-=Math.max(0,num(a.oven))*600*600;
-  if(a.fridge&&!a.fridgeInt){const th=(P.tall&&P.tall[0])?num(P.tall[0].h):1800;fac-=600*th;} fac=Math.max(0,fac);
+  if(a.fridge&&!a.fridgeInt){const tr=(P.runs||[]).find(r=>r.type==='tall');const th=tr?num(tr.height):1800;fac-=600*th;} fac=Math.max(0,fac);
   // facade edgebanding from total fronts (base/wall + tall)
   const F=Math.max(1,Math.round(num(P.sys.drawers))+Math.round(num(P.sys.doors))+tallDrawers+tallDoors);
   const avgA=fac/F,fw=Math.max(150,uwBase),fh=Math.max(150,avgA/fw); band+=F*2*(fw+fh);cut+=F*2*(fw+fh);
@@ -1576,34 +1582,17 @@ function plCompute(){
   const accUnitC=(num(a.ledQty)>0?num(a.ledQty)*num(U.led)+num(U.ledBase):0)+num(a.hk)*num(U.hk)+num(a.hl)*num(U.hl)+num(a.hf)*num(U.hf)+num(a.tandem)*num(U.tandem)+num(a.accDrawer)*num(U.accDrawer)+num(a.shoeDrawer)*num(U.shoeDrawer)+num(a.holes)*num(U.holes);
   const accDirect=num(a.dishDryer)+num(a.cutlery)+num(a.handles)+num(a.curvedCorner)+num(a.hangRails)+num(a.countertop)+num(a.backsplash);
   const accMont=num(a.montavimas),accDeliv=num(a.delivery),accOther=accUnitC+accDirect;
-  const m2=g.facM2,net=matCost+cutCost+bandCost;
-  const matMarkup=matCost*qr('matMarkup')/100,packing=m2*qr('packing'),fasteners=m2*qr('fasteners'),waste=matCost*qr('waste')/100,depreciation=m2*qr('depreciation'),defects=net*qr('defects')/100;
-  const production=net+matMarkup+packing+fasteners+waste+depreciation+defects+hwCost+accOther;
+  const TM2=g.carcM2+g.facM2+g.backM2;            // total board area — mirrors detailed-quote H8 metric (carcass+facade+back; drawer boxes are folded into carcM2)
+  const net=matCost+cutCost+bandCost;             // material + cutting + edgebanding
+  const cabCost=net+hwCost;                        // mirrors the "cabinets" (cabSum) base used in the detailed quote
+  const matMarkup=cabCost*qr('matMarkup')/100,packing=TM2*qr('packing'),fasteners=TM2*qr('fasteners'),waste=net*qr('waste')/100,depreciation=TM2*qr('depreciation'),defects=cabCost*qr('defects')/100;
   const isW=q.projType==='SPINTA';
-  const assembly=m2*(isW?num(q.assemblyWardrobe):num(q.assemblyKitchen)), design=m2*(isW?num(q.designWardrobe):num(q.designKitchen));
-  const admin=(production+assembly+design)*qr('admin')/100, labor=assembly+design+admin+accMont, fullCost=production+labor+accDeliv;
+  const design=TM2*(isW?num(q.designWardrobe):num(q.designKitchen)), assembly=TM2*(isW?num(q.assemblyWardrobe):num(q.assemblyKitchen));
+  const production=net+hwCost+accOther+matMarkup+packing+fasteners+waste+depreciation+defects+design;
+  const admin=production*qr('admin')/100, labor=assembly+admin+accMont, fullCost=production+labor+accDeliv;
+  const m2=TM2;
   const margin=fullCost*num(P.margin)/100, offer=fullCost+margin, pvmRate=q.country==='LIETUVA'?qr('pvm')/100:0, vat=offer*pvmRate, withVat=offer+vat;
   return {g,matCost,cutCost,bandCost,hwCost,hwHinges,hwSlides,hwInner,nDoors,nDr,nIn,hpd,accOther,accMont,accDeliv,net,matMarkup,packing,fasteners,waste,depreciation,defects,production,assembly,design,admin,labor,fullCost,margin,offer,pvmRate,vat,withVat,m2};
-}
-function plAddTall(){S.prelim.tall.push({n:1,w:600,h:2100,d:580,shelves:4,partitions:0,drawers:0,doors:2,vis:0});plRenderTall();plRecalc();saveNow();}
-function plDelTall(i){S.prelim.tall.splice(i,1);if(!S.prelim.tall.length)S.prelim.tall.push({n:1,w:600,h:2100,d:580,shelves:4,partitions:0,drawers:0,doors:2,vis:0});plRenderTall();plRecalc();saveNow();}
-function plRenderTall(){const box=document.getElementById('plTallBox');if(!box)return;
-  box.innerHTML=S.prelim.tall.map((u,i)=>`<div style="border:1px solid var(--line);border-radius:9px;padding:10px;margin-bottom:10px;background:#fbfdfc">
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span class="eyebrow">${t('plTallU')} ${i+1}</span><div style="flex:1"></div><button class="icon-btn" onclick="plDelTall(${i})" title="${t('plRemove')}">✕</button></div>
-    <div class="grid4">
-      <label class="f"><span class="l">${t('plQty')}</span><input type="number" value="${num(u.n)}" oninput="S.prelim.tall[${i}].n=num(this.value);saveNow();plRecalc()"></label>
-      <label class="f"><span class="l">${t('plW')}</span><input type="number" value="${num(u.w)}" oninput="S.prelim.tall[${i}].w=num(this.value);saveNow();plRecalc()"></label>
-      <label class="f"><span class="l">${t('plHh')}</span><input type="number" value="${num(u.h)}" oninput="S.prelim.tall[${i}].h=num(this.value);saveNow();plRecalc()"></label>
-      <label class="f"><span class="l">${t('plDd')}</span><input type="number" value="${num(u.d)}" oninput="S.prelim.tall[${i}].d=num(this.value);saveNow();plRecalc()"></label>
-    </div>
-    <div class="grid4" style="margin-top:8px">
-      <label class="f"><span class="l">${t('plSh')}</span><input type="number" value="${num(u.shelves)}" oninput="S.prelim.tall[${i}].shelves=num(this.value);saveNow();plRecalc()"></label>
-      <label class="f"><span class="l">${t('plParts')}</span><input type="number" value="${num(u.partitions)}" oninput="S.prelim.tall[${i}].partitions=num(this.value);saveNow();plRecalc()"></label>
-      <label class="f"><span class="l">${t('plTDr')}</span><input type="number" value="${num(u.drawers)}" oninput="S.prelim.tall[${i}].drawers=num(this.value);saveNow();plRecalc()"></label>
-      <label class="f"><span class="l">${t('plTDo')}</span><input type="number" value="${num(u.doors)}" oninput="S.prelim.tall[${i}].doors=num(this.value);saveNow();plRecalc()"></label>
-    </div>
-    <label class="f" style="margin-top:8px;max-width:200px"><span class="l">${t('plVis')}</span><select onchange="S.prelim.tall[${i}].vis=num(this.value);saveNow();plRecalc()">${[0,1,2].map(v=>`<option value="${v}" ${num(u.vis)===v?'selected':''}>${v===0?(LANG==='lt'?'nėra':'none'):v}</option>`).join('')}</select></label>
-  </div>`).join('');
 }
 function plAccMeta(){return [['dishDryer',LANG==='lt'?'Indų džiovykla':'Dish dryer','direct'],['cutlery',LANG==='lt'?'Įrankinė':'Cutlery','direct'],['ledQty','LED (m)','led'],['handles',LANG==='lt'?'Rankenėlės':'Handles','direct'],['curvedCorner',LANG==='lt'?'Lenktas kampas':'Curved corner','direct'],['hk','HK','unit'],['hl','HL','unit'],['hf','HF','unit'],['tandem',LANG==='lt'?'Tandem stalčius':'Tandem','unit'],['hangRails',LANG==='lt'?'Pakabos vamzdžiai':'Hanging rails','direct'],['accDrawer',LANG==='lt'?'Aksesuarų stalčius':'Accessory drawer','unit'],['shoeDrawer',LANG==='lt'?'Batų stalčius':'Shoe drawer','unit'],['countertop',LANG==='lt'?'Stalviršis':'Countertop','direct'],['backsplash','HPL','direct'],['holes',LANG==='lt'?'Skylės':'Holes','unit'],['montavimas',LANG==='lt'?'Montavimas':'Installation','direct'],['delivery',LANG==='lt'?'Pristatymas':'Delivery','direct']];}
 function plAccTot(key,type){const U=S.rates.accUnit,qv=num(S.prelim.acc[key]);if(type==='direct')return qv;if(type==='led')return qv>0?qv*num(U.led)+num(U.ledBase):0;return qv*num(U[key]||0);}
@@ -1628,22 +1617,48 @@ function plFillInputs(){const P=S.prelim,set=(id,v)=>{const e=document.getElemen
 function plApplSync(){const a=S.prelim.appliances;
   [['pl_dwSub',a.dw],['pl_fridgeSub',a.fridge]].forEach(([id,on])=>{const e=document.getElementById(id);if(e){e.style.opacity=on?'1':'.38';e.style.pointerEvents=on?'auto':'none';e.querySelectorAll('input').forEach(x=>x.disabled=!on);}});
 }
-function plAddRun(type){S.prelim.runs.push(type==='wall'?{type:'wall',length:2000,height:720,depth:330,units:3,shelves:3,vis:0}:{type:'base',length:2000,height:760,depth:560,units:3,shelves:2,vis:0});plRenderRuns();plRecalc();saveNow();}
+function plAddRun(type){let it;
+  if(type==='wall')it={type:'wall',length:2000,height:720,depth:330,units:3,shelves:3,vis:0};
+  else if(type==='tall')it={type:'tall',qty:1,width:600,height:2100,depth:580,shelves:4,partitions:0,drawers:0,doors:2,vis:0};
+  else it={type:'base',length:2000,height:760,depth:560,units:3,shelves:2,vis:0};
+  S.prelim.runs.push(it);plRenderRuns();plRecalc();saveNow();}
 function plDelRun(i){S.prelim.runs.splice(i,1);if(!S.prelim.runs.length)S.prelim.runs=DEFAULT_PRELIM().runs;plRenderRuns();plRecalc();saveNow();}
-function plRunUp(i,k,v){const r=S.prelim.runs[i];if(!r)return;r[k]=(k==='type')?v:num(v);if(k==='type'){plRenderRuns();}plRecalc();saveNow();}
+function plRunUp(i,k,v){const r=S.prelim.runs[i];if(!r)return;r[k]=(k==='type')?v:num(v);
+  if(k==='type'){
+    if(v==='tall'){if(r.qty==null)r.qty=Math.max(1,num(r.units)||1);if(r.width==null)r.width=600;if(num(r.height)<1200)r.height=2100;if(r.partitions==null)r.partitions=0;if(r.drawers==null)r.drawers=0;if(r.doors==null)r.doors=2;if(r.shelves==null)r.shelves=4;if(r.depth==null)r.depth=580;}
+    else{if(r.length==null)r.length=Math.max(300,(num(r.width)||600)*Math.max(1,num(r.qty)||1));if(r.units==null)r.units=Math.max(1,num(r.qty)||3);if(r.shelves==null)r.shelves=2;if(num(r.height)>1500)r.height=(v==='wall'?720:760);if(v==='wall'&&num(r.depth)>400)r.depth=330;}
+    plRenderRuns();
+  }
+  plRecalc();saveNow();}
 function plRenderRuns(){const box=document.getElementById('plRunsBox');if(!box)return;const lt=LANG==='lt';
-  box.innerHTML=(S.prelim.runs||[]).map((r,i)=>{const isW=r.type==='wall';
-    return `<div style="border:1px solid var(--line);border-radius:9px;padding:10px;margin-bottom:10px;background:${isW?'#f6fbfa':'#fbfdfc'}">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-        <select onchange="plRunUp(${i},'type',this.value)" style="max-width:150px;font-weight:600">
-          <option value="base" ${!isW?'selected':''}>${lt?'⬓ Pastatoma (apačia)':'⬓ Base (standing)'}</option>
+  box.innerHTML=(S.prelim.runs||[]).map((r,i)=>{const isW=r.type==='wall',isT=r.type==='tall';
+    const tint=isT?'#f3fbf8':(isW?'#f6fbfa':'#fbfdfc');
+    const head=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <select onchange="plRunUp(${i},'type',this.value)" style="max-width:165px;font-weight:600">
+          <option value="base" ${(!isW&&!isT)?'selected':''}>${lt?'⬓ Pastatoma (apačia)':'⬓ Base (standing)'}</option>
           <option value="wall" ${isW?'selected':''}>${lt?'⬒ Pakabinama':'⬒ Wall (hanging)'}</option>
+          <option value="tall" ${isT?'selected':''}>${lt?'▯ Aukšta spinta':'▯ Tall unit'}</option>
         </select>
-        <span class="eyebrow">${lt?'Sekcija':'Run'} ${i+1}</span>
+        <span class="eyebrow">${lt?'Sekcija':'Section'} ${i+1}</span>
         <div style="flex:1"></div>
         <button class="icon-btn" onclick="plDelRun(${i})" title="${lt?'Šalinti':'Remove'}">✕</button>
+      </div>`;
+    let body;
+    if(isT){
+      body=`<div class="grid4">
+        <label class="f"><span class="l">${t('plQty')}</span><input type="number" value="${num(r.qty)}" oninput="plRunUp(${i},'qty',this.value)"></label>
+        <label class="f"><span class="l">${t('plW')}</span><input type="number" value="${num(r.width)}" oninput="plRunUp(${i},'width',this.value)"></label>
+        <label class="f"><span class="l">${t('plHh')}</span><input type="number" value="${num(r.height)}" oninput="plRunUp(${i},'height',this.value)"></label>
+        <label class="f"><span class="l">${t('plDd')}</span><input type="number" value="${num(r.depth)}" oninput="plRunUp(${i},'depth',this.value)"></label>
       </div>
-      <div class="grid3">
+      <div class="grid4" style="margin-top:8px">
+        <label class="f"><span class="l">${t('plSh')}</span><input type="number" value="${num(r.shelves)}" oninput="plRunUp(${i},'shelves',this.value)"></label>
+        <label class="f"><span class="l">${t('plParts')}</span><input type="number" value="${num(r.partitions)}" oninput="plRunUp(${i},'partitions',this.value)"></label>
+        <label class="f"><span class="l">${t('plTDr')}</span><input type="number" value="${num(r.drawers)}" oninput="plRunUp(${i},'drawers',this.value)"></label>
+        <label class="f"><span class="l">${t('plTDo')}</span><input type="number" value="${num(r.doors)}" oninput="plRunUp(${i},'doors',this.value)"></label>
+      </div>`;
+    } else {
+      body=`<div class="grid3">
         <label class="f"><span class="l">${lt?'Ilgis':'Length'}</span><input type="number" value="${num(r.length)}" oninput="plRunUp(${i},'length',this.value)"></label>
         <label class="f"><span class="l">${lt?'Aukštis':'Height'}</span><input type="number" value="${num(r.height)}" oninput="plRunUp(${i},'height',this.value)"></label>
         <label class="f"><span class="l">${lt?'Gylis':'Depth'}</span><input type="number" value="${num(r.depth)}" oninput="plRunUp(${i},'depth',this.value)"></label>
@@ -1651,9 +1666,11 @@ function plRenderRuns(){const box=document.getElementById('plRunsBox');if(!box)r
       <div class="grid2" style="margin-top:8px">
         <label class="f"><span class="l">${lt?'Sekcijų (vnt)':'Sections (pc)'}</span><input type="number" value="${num(r.units)}" oninput="plRunUp(${i},'units',this.value)"></label>
         <label class="f"><span class="l">${lt?'Lentynos (vnt)':'Shelves (pc)'}</span><input type="number" value="${num(r.shelves)}" oninput="plRunUp(${i},'shelves',this.value)"></label>
-      </div>
-      <label class="f" style="margin-top:8px;max-width:200px"><span class="l">${t('plVis')}</span><select onchange="plRunUp(${i},'vis',this.value)">${[0,1,2].map(v=>`<option value="${v}" ${num(r.vis)===v?'selected':''}>${v===0?(lt?'nėra':'none'):v}</option>`).join('')}</select></label>
-    </div>`;}).join('');
+      </div>`;
+    }
+    const vis=`<label class="f" style="margin-top:8px;max-width:200px"><span class="l">${t('plVis')}</span><select onchange="plRunUp(${i},'vis',this.value)">${[0,1,2].map(v=>`<option value="${v}" ${num(r.vis)===v?'selected':''}>${v===0?(lt?'nėra':'none'):v}</option>`).join('')}</select></label>`;
+    return `<div style="border:1px solid var(--line);border-radius:9px;padding:10px;margin-bottom:10px;background:${tint}">${head}${body}${vis}</div>`;
+  }).join('');
 }
 function plRecalc(){
   const Q=plCompute(),lt=LANG==='lt';
@@ -1820,7 +1837,7 @@ function renderOnboard(){const el=document.getElementById('onboard');if(!el)retu
       <div class="step"><span class="n">3</span><div class="st">${S4.ob3t}</div><div class="sd">${S4.ob3d}</div></div>
       <div class="step"><span class="n">4</span><div class="st">${S4.ob4t}</div><div class="sd">${S4.ob4d}</div></div>
     </div></div>`;}
-function renderAll(){applyI18n();renderTabs();renderMaterials();renderRates();renderCabinets();renderBoards();renderQuoteControls();renderExtras();renderLineItems('quote');renderImages('quote');renderLineItems('prelim');renderImages('prelim');const pr=document.getElementById('pl_remarks');if(pr)pr.value=S.prelim.remarks||"";plFillInputs();plRenderTall();plRenderAcc();plRecalc();renderOnboard();recalc();
+function renderAll(){applyI18n();renderTabs();renderMaterials();renderRates();renderCabinets();renderBoards();renderQuoteControls();renderExtras();renderLineItems('quote');renderImages('quote');renderLineItems('prelim');renderImages('prelim');const pr=document.getElementById('pl_remarks');if(pr)pr.value=S.prelim.remarks||"";plFillInputs();plRenderAcc();plRecalc();renderOnboard();recalc();
   const pn=document.getElementById('projName');if(pn){pn.value=S.projectName||"";pn.placeholder=t('projName');}
   const ps=document.getElementById('projSaveName');if(ps)ps.placeholder=t('projName');}
 function applyI18n(){document.documentElement.lang=LANG;document.querySelectorAll('[data-i]').forEach(el=>{const v=I18N[LANG][el.getAttribute('data-i')];if(v!==undefined){if(/<|&/.test(v))el.innerHTML=v;else el.textContent=v;}});
