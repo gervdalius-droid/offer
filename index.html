@@ -81,6 +81,10 @@
   .grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:11px}
   @media(max-width:980px){.grid4{grid-template-columns:repeat(2,1fr)}}
   @media(max-width:760px){.grid2,.grid3,.grid4{grid-template-columns:1fr}}
+  /* cost-entry fields (material / fittings prices) — amber so they're easy to spot */
+  input.cost{background:#fff7e0;border-color:#e3a900 !important;box-shadow:inset 0 0 0 1px #f1c953;font-weight:600}
+  input.cost:focus{background:#fffdf4;border-color:#c98f00 !important;box-shadow:inset 0 0 0 1px #e3a900}
+  #p-prelim input.cost{background:#fff7e0}
   /* cabinet layout */
   .cabgrid{display:grid;grid-template-columns:1fr 320px;gap:16px}
   @media(max-width:900px){.cabgrid{grid-template-columns:1fr}}
@@ -435,9 +439,9 @@
             </div>
             <div class="qgroup qg-fur" style="margin-top:12px"><div class="qgh" data-i="plFurT">🛠 Furnitūros kainos (€/vnt)</div>
               <div class="grid4">
-                <label class="f"><span class="l" data-i="plHinge">Vyris</span><input type="number" id="pl_hinge" oninput="plv('hw.hinge',this.value)"></label>
-                <label class="f"><span class="l" data-i="plSlide">Bėgeliai</span><input type="number" id="pl_slide" oninput="plv('hw.slide',this.value)"></label>
-                <label class="f"><span class="l" data-i="plISlide">Vid. bėgeliai</span><input type="number" id="pl_innerSlide" oninput="plv('hw.innerSlide',this.value)"></label>
+                <label class="f"><span class="l" data-i="plHinge">Vyris</span><input type="number" class="cost" id="pl_hinge" oninput="plv('hw.hinge',this.value)"></label>
+                <label class="f"><span class="l" data-i="plSlide">Bėgeliai</span><input type="number" class="cost" id="pl_slide" oninput="plv('hw.slide',this.value)"></label>
+                <label class="f"><span class="l" data-i="plISlide">Vid. bėgeliai</span><input type="number" class="cost" id="pl_innerSlide" oninput="plv('hw.innerSlide',this.value)"></label>
                 <label class="f"><span class="l" data-i="plBoxH">Dėžės aukštis</span><input type="number" id="pl_drawerBoxH" oninput="plv('sys.drawerBoxH',this.value)"></label>
               </div>
             </div>
@@ -446,9 +450,9 @@
         <div class="card">
           <div class="head"><span class="eyebrow" data-i="plMatEy">Medžiagos</span><h2 data-i="plMatT">Medžiagos (€/m²)</h2></div>
           <div class="body"><div class="grid4">
-            <label class="f"><span class="l" data-i="plCarcMat">Karkasas</span><input type="number" id="pl_carc" oninput="plv('mat.carc',this.value)"></label>
-            <label class="f"><span class="l" data-i="plFacMat">Fasadas</span><input type="number" id="pl_facade" oninput="plv('mat.facade',this.value)"></label>
-            <label class="f"><span class="l" data-i="plBackMat">Nugarėlė</span><input type="number" id="pl_back" oninput="plv('mat.back',this.value)"></label>
+            <label class="f"><span class="l" data-i="plCarcMat">Karkasas</span><input type="number" class="cost" id="pl_carc" oninput="plv('mat.carc',this.value)"></label>
+            <label class="f"><span class="l" data-i="plFacMat">Fasadas</span><input type="number" class="cost" id="pl_facade" oninput="plv('mat.facade',this.value)"></label>
+            <label class="f"><span class="l" data-i="plBackMat">Nugarėlė</span><input type="number" class="cost" id="pl_back" oninput="plv('mat.back',this.value)"></label>
             <label class="f"><span class="l" data-i="plMargin">Antkainis %</span><input type="number" id="pl_margin" oninput="S.prelim.margin=num(this.value);saveNow();plRecalc()"></label>
           </div><div class="note" data-i="plMatNote" style="margin-top:10px">Pjovimo/briaunavimo įkainiai imami iš „Operaciniai kaštai". Antkainį galite keisti čia atskirai nuo „Pasiūlymas".</div></div>
         </div>
@@ -515,6 +519,18 @@
       <button class="btn sm" onclick="newProject()" data-i="projNew">＋ Naujas</button>
     </div>
     <div class="muted" data-i="projHint" style="font-size:12px;margin-bottom:10px">Išsaugoti projektai laikomi šioje naršyklėje. Eksportuokite JSON atsarginei kopijai.</div>
+    <details style="margin-bottom:10px;border:1px solid var(--line);border-radius:9px;padding:8px 11px">
+      <summary style="cursor:pointer;font-weight:600">☁ Debesis (Supabase) — sinchronizuoti tarp įrenginių</summary>
+      <div id="cloudStatus" class="muted" style="font-size:12px;margin:8px 0"></div>
+      <label class="f"><span class="l">Project URL</span><input id="cloudUrl" placeholder="https://xxxx.supabase.co"></label>
+      <label class="f" style="margin-top:6px"><span class="l">anon key</span><input id="cloudKey" placeholder="eyJhbGciOiJ..."></label>
+      <div class="addbar" style="margin-top:8px">
+        <button class="btn sm primary" onclick="saveCloudCfg()">Prisijungti</button>
+        <button class="btn sm" onclick="testCloud()">Testuoti</button>
+        <button class="btn sm" onclick="disconnectCloud()">Atjungti</button>
+      </div>
+      <div class="muted" style="font-size:11px;margin-top:6px">Prisijungus, projektai saugomi debesyje ir matomi iš bet kurio įrenginio. Ši naršyklė lieka kaip atsarginė kopija.</div>
+    </details>
     <div id="projList"></div>
   </div>
 </div></div>
@@ -688,22 +704,70 @@ function resetAll(){if(!confirm(LANG==='lt'?"Išvalyti viską?":"Clear everythin
 const PLS="dedesBaldai.projects.v1";
 function loadProjects(){try{return JSON.parse(localStorage.getItem(PLS)||"{}");}catch(e){return {};}}
 function storeProjects(o){try{localStorage.setItem(PLS,JSON.stringify(o));return true;}catch(e){return false;}}
-function openProjects(){document.getElementById('projModal').classList.add('on');document.getElementById('projSaveName').value=S.projectName||"";renderProjects();}
+/* ===== optional cloud sync via Supabase REST (no SDK) ===== */
+const CLS="dedesBaldai.cloud";
+let cloudCache=[];
+function cloudCfg(){try{return JSON.parse(localStorage.getItem(CLS)||"{}");}catch(e){return {};}}
+function cloudOn(){const c=cloudCfg();return !!(c.url&&c.key);}
+function cloudHeaders(){const c=cloudCfg();return {'apikey':c.key,'Authorization':'Bearer '+c.key,'Content-Type':'application/json'};}
+function cloudBase(){return (cloudCfg().url||'').replace(/\/+$/,'')+'/rest/v1/quote_projects';}
+async function cloudList(){const r=await fetch(cloudBase()+'?select=name,data,updated_at&order=updated_at.desc',{headers:cloudHeaders()});if(!r.ok)throw new Error('HTTP '+r.status);return await r.json();}
+async function cloudSave(name,data){const r=await fetch(cloudBase(),{method:'POST',headers:Object.assign(cloudHeaders(),{'Prefer':'resolution=merge-duplicates,return=minimal'}),body:JSON.stringify({name:name,data:data,updated_at:new Date().toISOString()})});if(!r.ok)throw new Error('HTTP '+r.status+' '+(await r.text()));}
+async function cloudDelete(name){const r=await fetch(cloudBase()+'?name=eq.'+encodeURIComponent(name),{method:'DELETE',headers:cloudHeaders()});if(!r.ok)throw new Error('HTTP '+r.status);}
+function saveCloudCfg(){const url=(document.getElementById('cloudUrl').value||'').trim();const key=(document.getElementById('cloudKey').value||'').trim();if(!url||!key){toast(LANG==='lt'?'Įveskite URL ir raktą':'Enter URL and key');return;}localStorage.setItem(CLS,JSON.stringify({url:url,key:key}));renderCloudStatus();testCloud();renderProjects();}
+function disconnectCloud(){localStorage.removeItem(CLS);renderCloudStatus();renderProjects();toast(LANG==='lt'?'Atjungta':'Disconnected');}
+async function testCloud(){const s=document.getElementById('cloudStatus');if(s)s.textContent=LANG==='lt'?'Tikrinama…':'Testing…';try{const list=await cloudList();cloudCache=list;if(s)s.textContent=(LANG==='lt'?'✓ Prisijungta. Projektų debesyje: ':'✓ Connected. Cloud projects: ')+list.length;}catch(e){if(s)s.textContent=(LANG==='lt'?'✗ Klaida: ':'✗ Error: ')+e.message;}}
+function renderCloudStatus(){const u=document.getElementById('cloudUrl'),k=document.getElementById('cloudKey'),s=document.getElementById('cloudStatus');const c=cloudCfg();if(u&&!u.value)u.value=c.url||'';if(k&&!k.value)k.value=c.key||'';if(s&&!s.textContent)s.textContent=cloudOn()?(LANG==='lt'?'Debesis įjungtas (Supabase)':'Cloud on (Supabase)'):(LANG==='lt'?'Neprijungta — naudojama tik ši naršyklė':'Not connected — this browser only');}
+
+function openProjects(){document.getElementById('projModal').classList.add('on');document.getElementById('projSaveName').value=S.projectName||"";renderCloudStatus();renderProjects();}
 function closeProjects(){document.getElementById('projModal').classList.remove('on');}
-function saveProject(){const nm=(document.getElementById('projSaveName').value||"").trim();if(!nm){toast(LANG==='lt'?"Įveskite pavadinimą":"Enter a name");return;}
-  S.projectName=nm;const all=loadProjects();const prev=all[nm];all[nm]={savedAt:Date.now(),data:JSON.parse(JSON.stringify(S))};
+async function saveProject(){const nm=(document.getElementById('projSaveName').value||"").trim();if(!nm){toast(LANG==='lt'?"Įveskite pavadinimą":"Enter a name");return;}
+  S.projectName=nm;const data=JSON.parse(JSON.stringify(S));
+  if(cloudOn()){
+    try{await cloudSave(nm,data);}catch(e){toast((LANG==='lt'?"Debesio klaida: ":"Cloud error: ")+e.message);return;}
+    try{const all=loadProjects();all[nm]={savedAt:Date.now(),data:data};storeProjects(all);}catch(_){}        // best-effort local cache
+    document.getElementById('projName').value=nm;saveNow();renderProjects();toast(LANG==='lt'?"Išsaugota debesyje":"Saved to cloud");return;
+  }
+  const all=loadProjects();const prev=all[nm];all[nm]={savedAt:Date.now(),data:data};
   if(!storeProjects(all)){if(prev)all[nm]=prev;else delete all[nm];toast(LANG==='lt'?"Nepavyko išsaugoti (per daug nuotraukų?)":"Save failed (too many images?)");return;}
   document.getElementById('projName').value=nm;saveNow();renderProjects();toast(LANG==='lt'?"Projektas išsaugotas":"Project saved");}
-function loadProject(nm){const all=loadProjects();if(!all[nm])return;S=Object.assign(DEFAULT_STATE(),all[nm].data);normalizeState();closeProjects();renderAll();saveNow();toast((LANG==='lt'?"Atvertas: ":"Opened: ")+nm);}
-function deleteProject(nm){if(!confirm(t('projConfirm')))return;const all=loadProjects();delete all[nm];storeProjects(all);renderProjects();}
-function newProject(){if(!confirm(t('projNewConfirm')))return;S=DEFAULT_STATE();closeProjects();renderAll();saveNow();}
-function renderProjects(){const all=loadProjects();const names=Object.keys(all).sort((a,b)=>(all[b].savedAt||0)-(all[a].savedAt||0));const box=document.getElementById('projList');
-  if(!names.length){box.innerHTML=`<div class="empty">${t('projNone')}</div>`;return;}
-  box.innerHTML=`<div class="tblwrap"><table><tbody>${names.map(nm=>{const d=new Date(all[nm].savedAt||0);const ds=isFinite(d)?d.toLocaleDateString(LANG==='lt'?'lt-LT':'en-US')+' '+d.toLocaleTimeString(LANG==='lt'?'lt-LT':'en-US',{hour:'2-digit',minute:'2-digit'}):'';
-    const cab=(all[nm].data&&all[nm].data.cabinets||[]).length;
-    return `<tr><td><b>${escapeHtml(nm)}</b><div class="muted" style="font-size:11px">${ds} · ${cab} ${LANG==='lt'?'spintelės':'cabinets'}</div></td>
-      <td class="right" style="white-space:nowrap"><button class="btn sm primary" onclick="loadProject('${escapeHtml(nm).replace(/'/g,"\\'")}')">${t('projLoad')}</button>
-      <button class="icon-btn" onclick="deleteProject('${escapeHtml(nm).replace(/'/g,"\\'")}')">✕</button></td></tr>`;}).join('')}</tbody></table></div>`;}
+async function loadProject(nm){let data=null;
+  if(cloudOn()){let hit=cloudCache.find(r=>r.name===nm);if(!hit){try{cloudCache=await cloudList();hit=cloudCache.find(r=>r.name===nm);}catch(e){toast((LANG==='lt'?"Debesio klaida: ":"Cloud error: ")+e.message);}}if(hit)data=hit.data;}
+  if(!data){const all=loadProjects();if(all[nm])data=all[nm].data;}
+  if(!data)return;
+  S=Object.assign(DEFAULT_STATE(),data);normalizeState();closeProjects();renderAll();saveNow();toast((LANG==='lt'?"Atvertas: ":"Opened: ")+nm);}
+function deleteProject(nm){if(!confirm(t('projConfirm')))return;
+  if(cloudOn()){cloudDelete(nm).then(()=>renderProjects()).catch(e=>toast((LANG==='lt'?"Debesio klaida: ":"Cloud error: ")+e.message));}
+  const all=loadProjects();delete all[nm];storeProjects(all);if(!cloudOn())renderProjects();}
+function newProject(){if(!confirm(t('projNewConfirm')))return;
+  const oldQ=S.quote||{},oldP=S.prelim||{},oldRates=S.rates,oldMats=S.materials;
+  const cfgKeys=['projType','country','margin','pvm','matMarkup','packing','defects','fasteners','waste','depreciation','designKitchen','designWardrobe','assemblyKitchen','assemblyWardrobe','admin'];
+  const f=DEFAULT_STATE();
+  f.rates=oldRates; f.materials=oldMats;                                  // keep shop config (rates, materials, hardware catalog)
+  cfgKeys.forEach(k=>{ if(oldQ[k]!=null) f.quote[k]=oldQ[k]; });          // keep pricing config in Quote
+  // clear all project furniture
+  f.cabinets=[]; f.boards=[];
+  f.prelim.runs=[]; f.prelim.corners=0;
+  f.prelim.appliances={dw:false,dwW:600,dwPanel:false,oven:0,fridge:false,fridgeInt:false};
+  f.prelim.sys={drawers:0,doors:0,innerDrawers:0,hingesPerDoor:num(oldP.sys&&oldP.sys.hingesPerDoor)||2,drawerBoxH:num(oldP.sys&&oldP.sys.drawerBoxH)||140};
+  f.prelim.mat=oldP.mat||f.prelim.mat; f.prelim.hw=oldP.hw||f.prelim.hw;  // keep material/hardware prices
+  if(oldP.margin!=null)f.prelim.margin=oldP.margin;
+  S=f; S.projectName="";
+  closeProjects();renderAll();saveNow();toast(LANG==='lt'?'Naujas tuščias projektas':'New blank project');}
+async function renderProjects(){const box=document.getElementById('projList');if(!box)return;const lt=LANG==='lt';let rows=[];
+  if(cloudOn()){
+    box.innerHTML=`<div class="empty">${lt?'Kraunama iš debesies…':'Loading from cloud…'}</div>`;
+    try{const list=await cloudList();cloudCache=list;rows=list.map(r=>({name:r.name,when:Date.parse(r.updated_at)||0,cab:((r.data&&r.data.cabinets)||[]).length}));}
+    catch(e){box.innerHTML=`<div class="empty">${(lt?'Debesio klaida: ':'Cloud error: ')+escapeHtml(e.message)}</div>`;return;}
+  }else{
+    const all=loadProjects();rows=Object.keys(all).map(nm=>({name:nm,when:all[nm].savedAt||0,cab:((all[nm].data&&all[nm].data.cabinets)||[]).length}));
+  }
+  rows.sort((a,b)=>b.when-a.when);
+  if(!rows.length){box.innerHTML=`<div class="empty">${t('projNone')}</div>`;return;}
+  box.innerHTML=`<div class="tblwrap"><table><tbody>${rows.map(r=>{const d=new Date(r.when);const ds=(r.when&&isFinite(d))?d.toLocaleDateString(lt?'lt-LT':'en-US')+' '+d.toLocaleTimeString(lt?'lt-LT':'en-US',{hour:'2-digit',minute:'2-digit'}):'';const esc=escapeHtml(r.name).replace(/'/g,"\\'");
+    return `<tr><td><b>${escapeHtml(r.name)}</b><div class="muted" style="font-size:11px">${ds} · ${r.cab} ${lt?'spintelės':'cabinets'}</div></td>
+      <td class="right" style="white-space:nowrap"><button class="btn sm primary" onclick="loadProject('${esc}')">${t('projLoad')}</button>
+      <button class="icon-btn" onclick="deleteProject('${esc}')">✕</button></td></tr>`;}).join('')}</tbody></table></div>`;}
 
 /* ===================== helpers ===================== */
 const num=v=>{const n=parseFloat(v);return isFinite(n)?n:0};
@@ -1038,7 +1102,7 @@ function renderMaterials(){const tb=document.getElementById('matBody');tb.innerH
     <td><input value="${escapeHtml(m.supplier||'')}" oninput="upMatSoft(${i},'supplier',this.value)" style="min-width:96px"></td>
     <td><select onchange="upMat(${i},'cat',this.value)">${['','FASADAS','KARKASAS','KITA'].map(x=>`<option ${m.cat===x?'selected':''} value="${x}">${x||'—'}</option>`).join('')}</select></td>
     <td><select onchange="upMat(${i},'unit',this.value)">${[['m2','€/m²'],['sheet','€/lakštas'],['m','€/m']].map(u=>`<option ${m.unit===u[0]?'selected':''} value="${u[0]}">${u[1]}</option>`).join('')}</select></td>
-    <td class="num"><input type="number" step="0.01" value="${m.price}" oninput="upMatSoft(${i},'price',this.value)"></td>
+    <td class="num"><input type="number" class="cost" step="0.01" value="${m.price}" oninput="upMatSoft(${i},'price',this.value)"></td>
     <td class="num">${m.unit==='sheet'?`<input type="number" value="${m.sL}" oninput="upMatSoft(${i},'sL',this.value)" style="width:58px">×<input type="number" value="${m.sW}" oninput="upMatSoft(${i},'sW',this.value)" style="width:58px">`:'<span class="muted">—</span>'}</td>
     <td class="num"><input type="number" step="0.5" value="${m.disc}" oninput="upMatSoft(${i},'disc',this.value)" style="width:60px"></td>
     <td class="num" id="net_${m.id}"><b>${fx(netM2(m))}</b></td>
@@ -1058,9 +1122,9 @@ function renderRates(){
   const ocb=document.getElementById('opCostBox');if(ocb)ocb.innerHTML=OC.map(r=>`<label class="f"><span class="l">${r[1]}</span><input type="number" step="0.5" value="${S.quote[r[0]]}" oninput="S.quote['${r[0]}']=num(this.value);recalc();saveNow()"></label>`).join('');
   const hw=document.getElementById('hwRatesBox');hw.innerHTML="";
   S.rates.hwCustom=S.rates.hwCustom||[];
-  HARDWARE.forEach(h=>{const l=document.createElement('label');l.className="f";l.innerHTML=`<span class="l">${h}</span><input type="number" step="0.5" value="${S.rates.hw[h]!==undefined?S.rates.hw[h]:0}" oninput="S.rates.hw['${h.replace(/'/g,"\\'")}']=num(this.value);renderCabinets();recalc();saveNow()">`;hw.appendChild(l);});
+  HARDWARE.forEach(h=>{const l=document.createElement('label');l.className="f";l.innerHTML=`<span class="l">${h}</span><input type="number" class="cost" step="0.5" value="${S.rates.hw[h]!==undefined?S.rates.hw[h]:0}" oninput="S.rates.hw['${h.replace(/'/g,"\\'")}']=num(this.value);renderCabinets();recalc();saveNow()">`;hw.appendChild(l);});
   S.rates.hwCustom.forEach((h,i)=>{const catL=h.cat==='door'?(LANG==='lt'?'vyriai':'hinge'):h.cat==='drawer'?(LANG==='lt'?'bėgeliai':'slide'):(LANG==='lt'?'kita':'other');
-    const l=document.createElement('label');l.className="f";l.innerHTML=`<span class="l">${escapeHtml(h.name)} · ${catL} <a href="#" onclick="delHardware(${i});return false" style="color:var(--bad);text-decoration:none">✕</a></span><input type="number" step="0.5" value="${num(S.rates.hw[h.name])}" oninput="S.rates.hw['${h.name.replace(/'/g,"\\'")}']=num(this.value);renderCabinets();recalc();saveNow()">`;hw.appendChild(l);});
+    const l=document.createElement('label');l.className="f";l.innerHTML=`<span class="l">${escapeHtml(h.name)} · ${catL} <a href="#" onclick="delHardware(${i});return false" style="color:var(--bad);text-decoration:none">✕</a></span><input type="number" class="cost" step="0.5" value="${num(S.rates.hw[h.name])}" oninput="S.rates.hw['${h.name.replace(/'/g,"\\'")}']=num(this.value);renderCabinets();recalc();saveNow()">`;hw.appendChild(l);});
   const add=document.createElement('div');add.className="addbar";add.style.cssText="grid-column:1/-1;margin-top:6px";
   add.innerHTML=`<input id="newHwName" placeholder="${LANG==='lt'?'Furnitūros pavadinimas':'Fitting name'}" style="flex:1;min-width:140px">
     <select id="newHwCat"><option value="drawer">${LANG==='lt'?'bėgeliai':'slide'}</option><option value="door">${LANG==='lt'?'vyriai':'hinge'}</option><option value="other">${LANG==='lt'?'kita':'other'}</option></select>
@@ -1568,9 +1632,9 @@ function plGeom(){
   const a=P.appliances;
   if(a.dw&&!a.dwPanel)fac-=num(a.dwW)*baseH; fac-=Math.max(0,num(a.oven))*600*600;
   if(a.fridge&&!a.fridgeInt){const tr=(P.runs||[]).find(r=>r.type==='tall');const th=tr?num(tr.height):1800;fac-=600*th;} fac=Math.max(0,fac);
-  // facade edgebanding from total fronts (base/wall + tall)
-  const F=Math.max(1,Math.round(num(P.sys.drawers))+Math.round(num(P.sys.doors))+tallDrawers+tallDoors);
-  const avgA=fac/F,fw=Math.max(150,uwBase),fh=Math.max(150,avgA/fw); band+=F*2*(fw+fh);cut+=F*2*(fw+fh);
+  // facade edgebanding from total fronts (base/wall + tall) — only if there is facade area
+  if(fac>0){const F=Math.max(1,Math.round(num(P.sys.drawers))+Math.round(num(P.sys.doors))+tallDrawers+tallDoors);
+    const avgA=fac/F,fw=Math.max(150,uwBase),fh=Math.max(150,avgA/fw); band+=F*2*(fw+fh);cut+=F*2*(fw+fh);}
   return {carcM2:carc/1e6,facM2:fac/1e6,backM2:back/1e6,cutLen:cut/1000,bandLen:band/1000,tallDrawers,tallDoors};
 }
 function plCompute(){
