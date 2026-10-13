@@ -60,7 +60,10 @@
   label.f span.l{font-weight:550;color:var(--ink)}
   input,select{font:inherit;color:var(--ink);background:#fff;border:1px solid var(--line2);border-radius:6px;padding:6px 8px;width:100%}
   input:focus,select:focus{outline:2px solid #b9c5f5;border-color:var(--amber)}
-  input[type=number]{font-family:var(--mono);text-align:right}
+  input[type=number],input.numin{font-family:var(--mono);text-align:right}
+  input.numin.bad{border-color:var(--bad);background:#fff5f5}
+  input.fillh{background:#eef0f3;color:var(--ink2);cursor:pointer}
+  input.fillh:hover{background:#e6e9ee}
   input[type=checkbox]{width:auto}
   .tblwrap{overflow-x:auto;border:1px solid var(--line);border-radius:9px}
   table{border-collapse:collapse;width:100%;font-size:12.5px;background:var(--paper)}
@@ -69,7 +72,7 @@
   tbody tr:hover{background:#f3f5f9}
   td.num,th.num{text-align:right;font-family:var(--mono)}
   td input,td select{padding:4px 6px;border-radius:5px}
-  td input[type=number]{min-width:60px}
+  td input[type=number],td input.numin{min-width:60px}
   tfoot td{font-weight:650;background:#eef1f5;border-top:2px solid var(--line2)}
   .pill{display:inline-block;font-family:var(--mono);font-size:11px;padding:1px 7px;border-radius:20px;background:var(--chip);color:var(--ink2)}
   .muted{color:var(--ink2)}.right{text-align:right}
@@ -786,7 +789,15 @@ async function renderProjects(){const box=document.getElementById('projList');if
       <button class="icon-btn" onclick="deleteProject('${esc}')">✕</button></td></tr>`;}).join('')}</tbody></table></div>`;}
 
 /* ===================== helpers ===================== */
-const num=v=>{const n=parseFloat(v);return isFinite(n)?n:0};
+const num=v=>{
+  if(typeof v==='number')return isFinite(v)?v:0;
+  if(v==null||v==='')return 0;
+  const s=String(v).replace(/\s+/g,'').replace(/,/g,'.');
+  if(/^[-+]?(\d+\.?\d*|\.\d+)$/.test(s))return parseFloat(s);
+  if(/^[\d.+\-*/()]+$/.test(s)&&/\d/.test(s)){                      // field math: 600-18, 2*300, (2400-36)/3
+    try{const r=Function('"use strict";return ('+s.replace(/\b0+(\d)/g,'$1')+')')();if(typeof r==='number'&&isFinite(r))return r;}catch(e){}
+  }
+  const n=parseFloat(s);return isFinite(n)?n:0;};
 const eur=v=>{const n=isFinite(v)?v:0;return n.toLocaleString(LANG==='lt'?'lt-LT':'en-US',{minimumFractionDigits:2,maximumFractionDigits:2})};
 const fx=(v,d=2)=>{const n=isFinite(v)?v:0;return n.toFixed(d)};
 const eq=(a,b)=>String(a||"").trim().toUpperCase()===String(b||"").trim().toUpperCase();
@@ -1253,7 +1264,7 @@ function addCabinet(after){const c=newCabinet();
   const src=(typeof after==='number')?S.cabinets[after]:S.cabinets[S.cabinets.length-1];
   inheritSettings(c,src);
   let pos;if(typeof after==='number'){pos=after+1;S.cabinets.splice(pos,0,c);}else{S.cabinets.push(c);pos=S.cabinets.length-1;}
-  renderCabinets();recalc();saveNow();scrollToCabinet(pos);}
+  renderCabinets();recalc();saveNow();focusByHandler(`upCabSoft(${pos},'W',this.value)`,true);scrollToCabinet(pos);}
 function scrollToCabinet(pos){setTimeout(()=>{const list=document.getElementById('cabList');if(!list)return;const cards=list.querySelectorAll(':scope > .card');if(cards[pos])cards[pos].scrollIntoView({behavior:'smooth',block:'center'});},60);}
 function addOvenCabinet(){const c=newCabinet();inheritSettings(c,S.cabinets[S.cabinets.length-1]);c.name=LANG==='lt'?"Orkaitė":"Oven";c.type="ŪKINĖ";c.W=600;c.D=580;c.H=2200;c.cols=1;c.colW=[];
   c.sections=ovenLayout();S.cabinets.push(c);renderCabinets();recalc();saveNow();scrollToCabinet(S.cabinets.length-1);}
@@ -1277,7 +1288,8 @@ function ovenLayout(){return [
   Object.assign(newSection('drawers'),{fill:false,height:775,nDrawers:2,hw:'BLUM TANDEMBOX',rail:500}),
   Object.assign(newSection('oven'),{fill:false,height:595,shelves:1,shelfAdj:false}),
   Object.assign(newSection('doors'),{fill:true,nDoors:2,hinge:'BLUM TIP-ON',shelves:2})];}
-function addSection(ci,kind,col){const c=S.cabinets[ci];const s=newSection(kind);s.col=Math.max(0,Math.min((num(c.cols)||1)-1,num(col)||0));s.facadePrice=c.defFacadePrice;s.facadeMat=c.defFacadeMat;c.sections.push(s);renderCabinets();recalc();saveNow();}
+function addSection(ci,kind,col){const c=S.cabinets[ci];const s=newSection(kind);s.col=Math.max(0,Math.min((num(c.cols)||1)-1,num(col)||0));s.facadePrice=c.defFacadePrice;s.facadeMat=c.defFacadeMat;c.sections.push(s);renderCabinets();recalc();saveNow();
+  const si=c.sections.length-1;focusByHandler(s.fill?(kind==='doors'?`upSecSoft(${ci},${si},'nDoors',this.value)`:`upSecSoft(${ci},${si},'shelves',this.value)`):`upSecSoft(${ci},${si},'height',this.value)`);}
 function delSection(ci,si){S.cabinets[ci].sections.splice(si,1);renderCabinets();recalc();saveNow();}
 function moveSection(ci,si,dir){const a=S.cabinets[ci].sections;const col=num(a[si].col)||0;
   let j=si+dir; while(j>=0&&j<a.length&&(num(a[j].col)||0)!==col)j+=dir;   // skip sections in other columns
@@ -1335,7 +1347,7 @@ function sectionCard(ci,si){
   const U=(k)=>`upSecSoft(${ci},${si},'${k}',this.value)`, UH=(k)=>`upSec(${ci},${si},'${k}',this.value)`;
   const r=calcCabinet(c); const so=r.secOut[si]||{info:"",secH:0};
   const hCtl=`<label class="f"><span class="l">${t('fSecH')}</span>
-      <div class="inrow"><input type="number" value="${s.fill?'':Math.round(num(s.height))}" ${s.fill?`disabled placeholder="${Math.round(so.secH||0)}"`:''} oninput="${U('height')}">
+      <div class="inrow"><input type="number" value="${s.fill?'':Math.round(num(s.height))}" ${s.fill?`readonly class="fillh" placeholder="${Math.round(so.secH||0)}" title="${LL('Spustelėkite, kad nustatytumėte aukštį','Click to set a height')}" onmousedown="event.preventDefault();unfill(${ci},${si})" onkeydown="if(/^[0-9]$/.test(event.key)){event.preventDefault();unfill(${ci},${si},event.key)}"`:''} oninput="${U('height')}">
       <label class="ck" title="${LL('Užpildyti likusį aukštį','Fill remaining height')}"><input type="checkbox" ${s.fill?'checked':''} onchange="toggleFill(${ci},${si},this.checked)">${t('fFill')}</label></div></label>`;
   const facF=matField(LL('Fasadas','Facade'),'FASADAS',s.facadeMat,s.facadePrice,`setSecMat(${ci},${si},this.value)`,U('facadePrice'));
   const shelfCtl=`<label class="f"><span class="l">${t('fShelves')}</span>
@@ -1445,9 +1457,9 @@ function renderCabinets(){
       <div class="fgrid dims">
         <label class="f"><span class="l">${t('fType')}</span><select onchange="upCab(${i},'type',this.value)">${typeOptions(c)}</select></label>
         ${dish?selField(t('fW'),[600,450].map(x=>[x,x+' mm']),num(c.dishWidth)||600,`upCab(${i},'dishWidth',this.value)`)
-              :numField(t('fW'),c.W,UC('W'))}
-        ${numField(t('fD'),c.D,UC('D'))}
-        ${numField(t('fH'),c.H,UC('H'))}
+              :numField(t('fW'),c.W,UC('W'),'data-req="1"')}
+        ${numField(t('fD'),c.D,UC('D'),'data-req="1"')}
+        ${numField(t('fH'),c.H,UC('H'),'data-req="1"')}
       </div>
       <div class="fgrid" style="margin-top:10px">
         ${facF}${carcF}
@@ -1959,6 +1971,49 @@ function commitImport(){if(!importStaging)return;const gi=id=>parseInt(document.
     let unit='m2';const us=mi.unit>=0?(r[mi.unit]||'').toLowerCase():'';if(us.includes('lak')||us.includes('sheet')||us.includes('vnt'))unit='sheet';else if(us.includes('m2')||us.includes('m²'))unit='m2';
     S.materials.push({id:uid(),name,code:mi.code>=0?(r[mi.code]||'').trim():'',supplier:mi.supplier>=0?(r[mi.supplier]||'').trim():'',cat:defCat,unit,price,sL:2800,sW:2070,disc:defDisc});added++;});
   closeImport();renderMaterials();renderCabinets();renderBoards();recalc();saveNow();toast((LANG==='lt'?'Pridėta medžiagų: ':'Materials added: ')+added);}
+
+/* ===================== input UX =====================
+   all numeric fields: text + decimal keypad (accepts 29,5 and 600-18), select on focus,
+   Enter = next field, ↑/↓ = ±1 (Shift ±10), result shown on leave, focus kept across re-renders */
+const handlerOf=el=>el&&el.getAttribute&&(el.getAttribute('oninput')||el.getAttribute('onchange'));
+function upgradeNum(root){if(!root||!root.querySelectorAll)return;
+  const list=(root.matches&&root.matches('input[type=number]'))?[root]:root.querySelectorAll('input[type=number]');
+  list.forEach(el=>{el.type='text';el.inputMode='decimal';el.autocomplete='off';el.spellcheck=false;el.classList.add('numin');
+    if(el.dataset.req)el.classList.toggle('bad',num(el.value)<=0);});}
+new MutationObserver(ms=>ms.forEach(m=>m.addedNodes.forEach(n=>{if(n.nodeType===1)upgradeNum(n);}))).observe(document.body,{childList:true,subtree:true});
+function focusByHandler(h,noScroll){upgradeNum(document.body);
+  const el=[...document.querySelectorAll('input,select')].find(e=>handlerOf(e)===h);
+  if(el){el.focus({preventScroll:!!noScroll});if(el.select&&el.classList.contains('numin'))el.select();}return el;}
+/* re-render without losing the field the user is in */
+function keepFocus(fn){return function(){const a=document.activeElement,h=handlerOf(a);
+  let ss=null,se=null;try{if(a&&a.tagName==='INPUT'){ss=a.selectionStart;se=a.selectionEnd;}}catch(e){}
+  const out=fn.apply(this,arguments);
+  if(h&&!document.body.contains(a)){upgradeNum(document.body);const el=[...document.querySelectorAll('input,select')].find(e=>handlerOf(e)===h);
+    if(el){el.focus({preventScroll:true});try{if(ss!=null)el.setSelectionRange(ss,se);}catch(e){}}}
+  return out;};}
+renderCabinets=keepFocus(renderCabinets);renderBoards=keepFocus(renderBoards);renderMaterials=keepFocus(renderMaterials);
+renderExtras=keepFocus(renderExtras);renderRates=keepFocus(renderRates);
+function unfill(ci,si,key){const c=S.cabinets[ci],s=c.sections[si];if(!s||!s.fill)return;
+  const so=calcCabinet(c).secOut[si]||{};s.height=Math.round(so.secH||0);s.fill=false;renderCabinets();recalc();saveNow();
+  const el=focusByHandler(`upSecSoft(${ci},${si},'height',this.value)`,true);
+  if(el&&key){el.value=key;el.dispatchEvent(new Event('input',{bubbles:true}));}}
+const fmtNum=n=>String(Math.round(n*1000)/1000);
+document.addEventListener('focusin',e=>{const el=e.target;if(el.classList&&el.classList.contains('numin')&&!el.readOnly){try{el.select();}catch(_){}el._selOnFocus=true;}});
+document.addEventListener('mouseup',e=>{const el=e.target;if(el&&el._selOnFocus){el._selOnFocus=false;e.preventDefault();}},true);   // keep the selection the click would clear
+document.addEventListener('keydown',e=>{if(e.target)e.target._selOnFocus=false;},true);
+document.addEventListener('focusout',e=>{const el=e.target;if(!(el.classList&&el.classList.contains('numin')))return;
+  const v=el.value.trim();if(v&&/[-+*/(),]/.test(v.replace(/^-/,''))){el.value=fmtNum(num(v));}});
+document.addEventListener('input',e=>{const el=e.target;if(el.dataset&&el.dataset.req)el.classList.toggle('bad',num(el.value)<=0);});
+document.addEventListener('keydown',e=>{const el=e.target;if(!el||el.tagName==='TEXTAREA'||el.readOnly)return;
+  const isNum=el.classList&&el.classList.contains('numin');
+  if(isNum&&(e.key==='ArrowUp'||e.key==='ArrowDown')){e.preventDefault();
+    const d=(e.key==='ArrowUp'?1:-1)*(e.shiftKey?10:1);el.value=fmtNum(num(el.value)+d);el.dispatchEvent(new Event('input',{bubbles:true}));return;}
+  if(e.key==='Enter'&&(el.tagName==='INPUT'||el.tagName==='SELECT')&&el.type!=='checkbox'&&el.type!=='file'){
+    e.preventDefault();if(isNum){const v=el.value.trim();if(v)el.value=fmtNum(num(v));}
+    const scope=el.closest('.card,.modal .box,section')||document.body;
+    const f=[...scope.querySelectorAll('input:not([type=checkbox]):not([type=file]):not([readonly]):not([disabled]),select:not([disabled])')].filter(x=>x.offsetParent!==null);
+    const i=f.indexOf(el),nx=f[i+(e.shiftKey?-1:1)];if(nx){nx.focus();}else el.blur();}
+});
 
 /* ===================== boot ===================== */
 function recalc(){renderLadder();renderSummary();}
