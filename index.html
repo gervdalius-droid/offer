@@ -1921,11 +1921,18 @@ td.r,th.r{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
 .noprint{position:fixed;top:12px;right:12px}
 .noprint button{font:inherit;cursor:pointer;background:#2f54eb;color:#fff;border:0;border-radius:8px;padding:10px 18px;font-weight:600;box-shadow:0 3px 10px rgba(47,84,235,.32)}
 @media print{.noprint{display:none}.wrap{padding:0}}
-</style></head><body>
+/* one item: everything on one A4 page */
+body.one .gimg img{max-height:${imgs.length===1?380:260}px}
+body.one .gallery{margin-bottom:16px}
+body.one .proj{margin-bottom:16px}
+body.one .remarks{margin-top:18px}
+body.one .foot{margin-top:20px}
+body.measure .wrap{width:184mm;max-width:none;padding:0;margin:0}
+</style></head><body class="${multi?'':'one'}">
 <div class="noprint"><button onclick="window.print()">${lt?'🖨 Spausdinti / Įrašyti PDF':'🖨 Print / Save PDF'}</button></div>
 <div class="wrap">
   <div class="top">
-    <div><img class="brandimg" src="${LOGO_BLACK}" alt="Dėdės Baldai"><div class="co">${lt?'Nestandartiniai baldai pagal užsakymą':'Bespoke furniture'}<br>Vilnius, Lietuva · info@dedesbaldai.lt</div></div>
+    <div><img class="brandimg" src="${LOGO_BLACK}" alt="Dėdės Baldai"><div class="co">info@dedesbaldai.lt</div></div>
     <div class="doc"><h1>${lt?'Komercinis pasiūlymas':'Quotation'}</h1><div class="meta">${lt?'Nr.':'No.'} <b>${qno}</b><br>${lt?'Data':'Date'}: <b>${today}</b>${validStr?`<br>${lt?'Galioja iki':'Valid until'}: <b>${validStr}</b>`:''}</div></div>
   </div>
   <div class="rule"></div>
@@ -1941,7 +1948,13 @@ td.r,th.r{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
   ${remarks?`<div class="remarks"><div class="rl">${lt?'Pastabos':'Remarks'}</div><div class="rv">${esc(remarks)}</div></div>`:''}
   <div class="foot"><div>${validStr?(lt?'Pasiūlymas galioja iki '+validStr+'. Kainos eurais.':'Quote valid until '+validStr+'. Prices in EUR.'):(lt?'Kainos eurais.':'Prices in EUR.')}</div><div>${lt?'Dėkojame, kad renkatės Dėdės Baldai':'Thank you for choosing Dėdės Baldai'}</div></div>
 </div>
-<script>window.onload=function(){setTimeout(function(){try{window.print()}catch(e){}},400)}<\/script>
+<script>
+function fitOnePage(){var b=document.body,w=document.querySelector('.wrap');if(!w||!b.classList.contains('one'))return;
+  w.style.zoom='';b.classList.add('measure');var mm=96/25.4,pageH=(297-28)*mm-6,h=w.scrollHeight;b.classList.remove('measure');
+  if(h>pageH){w.style.width='184mm';w.style.maxWidth='none';w.style.margin='0 auto';w.style.zoom=(pageH/h*0.985).toFixed(4);}}
+window.onload=function(){var imgs=[].slice.call(document.images),left=imgs.length,go=function(){fitOnePage();setTimeout(function(){try{window.print()}catch(e){}},400);};
+  if(!left)return go();imgs.forEach(function(im){if(im.complete){if(--left===0)go();}else{im.onload=im.onerror=function(){if(--left===0)go();};}});}
+<\/script>
 </body></html>`;
   const w=window.open('','_blank');
   if(!w){toast(lt?'Leiskite iškylančius langus (pop-ups)':'Please allow pop-ups');return;}
