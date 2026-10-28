@@ -1934,83 +1934,143 @@ function makePDF(which){
   const pvmRate=(q.country==='LIETUVA')?num(q.pvm)/100:0;
   const beVat=items.reduce((s,li)=>s+num(li.qty)*num(li.price),0), vat=beVat*pvmRate, suVat=beVat+vat, rate=Math.round(pvmRate*100);
   const multi=items.length>1;
-  const rows=items.map((li,i)=>`<tr><td class="c">${i+1}</td><td><b>${esc(li.name||(lt?'Pozicija':'Item'))}</b></td><td class="c">${num(li.qty)} ${lt?'vnt':'pc'}</td>${multi?`<td class="r">${eur(num(li.price))} €</td>`:''}<td class="r"><b>${eur(num(li.qty)*num(li.price))} €</b></td></tr>`).join('');
+  const rows=items.map((li,i)=>`<tr><td class="n">${String(i+1).padStart(2,'0')}</td><td class="nm">${esc(li.name||(lt?'Pozicija':'Item'))}</td><td class="q">${num(li.qty)} ${lt?'vnt.':'pc'}</td>${multi?`<td class="m">${eur(num(li.price))} €</td>`:''}<td class="m sum">${eur(num(li.qty)*num(li.price))} €</td></tr>`).join('');
   const imgs=(doc.pdfImages||[]);
-  const gallery=imgs.length?`<div class="gallery">${imgs.map(u=>`<div class="gimg"><img src="${u}"></div>`).join('')}</div>`:'';
+  const hero=imgs.length?`<figure class="hero"><img src="${imgs[0]}" alt=""></figure>`:'';
+  const thumbs=imgs.length>1?`<div class="thumbs t${Math.min(3,imgs.length-1)}">${imgs.slice(1).map(u=>`<figure><img src="${u}" alt=""></figure>`).join('')}</div>`:'';
   const remarks=(doc.remarks||'').trim();
-  const html=`<!doctype html><html lang="${LANG}"><head><meta charset="utf-8"><title>${esc(S.projectName||(lt?'Komercinis pasiūlymas':'Quotation'))} ${qno}</title>
+  const title=lt?'Komercinis pasiūlymas':'Quotation';
+  const proj=S.projectName||(lt?'Baldai pagal projektą':'Furniture per project');
+  const html=`<!doctype html><html lang="${LANG}"><head><meta charset="utf-8"><title>${esc(S.projectName||title)} ${qno}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<script>
+function fitOnePage(){var b=document.body,w=document.querySelector('.wrap');if(!w||b.classList.contains('fitted'))return;
+  b.classList.add('measure');var mm=96/25.4,pageH=Math.floor((297-28)*mm)-8,h=w.scrollHeight;b.classList.remove('measure');
+  if(h<=pageH)return;
+  if(!b.classList.contains('one')&&h>pageH*1.22)return;   /* several items: only a small overflow is pulled onto one page */
+  /* scale the laid-out page into a box exactly one page tall: no reflow, nothing can spill onto a second page */
+  var sc=pageH/h,box=document.createElement('div');box.className='fitbox';box.style.height=pageH+'px';
+  w.parentNode.insertBefore(box,w);box.appendChild(w);b.classList.add('fitted');
+  w.style.transform='scale('+sc.toFixed(4)+')';w.style.marginLeft=((184-184*sc)/2).toFixed(2)+'mm';}
+var _done=false;function _ready(){var imgs=[].slice.call(document.images),left=imgs.length,go=function(){if(_done)return;_done=true;
+    var lk=document.querySelector('link[href*="fonts.googleapis"]');
+    var css=new Promise(function(r){if(!lk||lk.media==='all')return r();lk.addEventListener('load',function(){r();});lk.addEventListener('error',function(){r();});setTimeout(r,2000);});
+    css.then(function(){var f=(document.fonts&&document.fonts.ready)?document.fonts.ready:Promise.resolve();return Promise.race([f,new Promise(function(r){setTimeout(r,1500);})]);})
+       .then(function(){fitOnePage();setTimeout(function(){try{window.print()}catch(e){}},300);});};
+  if(!left)return go();imgs.forEach(function(im){if(im.complete){if(--left===0)go();}else{im.onload=im.onerror=function(){if(--left===0)go();};}});}
+window.addEventListener('load',_ready);document.addEventListener('DOMContentLoaded',function(){setTimeout(_ready,2500);});
+<\/script>
 <style>
 @page{size:A4;margin:14mm 13mm}
-*{box-sizing:border-box}
-body{font-family:"Inter",-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#1b1e26;margin:0;font-size:12.5px;line-height:1.55}
+:root{--ink:#18191c;--ink2:#5d5a54;--mute:#9a958b;--line:#e8e2d7;--sand:#f6f1e9;--sand2:#efe7da;--brass:#b3864d;--brass2:#d6b07a;--night:#1d1e21}
+*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+html,body{margin:0;background:#fff}
+body{font-family:"Inter",-apple-system,"Segoe UI",Roboto,Arial,sans-serif;color:var(--ink);font-size:12.3px;line-height:1.55;font-feature-settings:"tnum" 1,"ss01" 1}
+.serif{font-family:"Fraunces",Georgia,"Times New Roman",serif}
 .wrap{max-width:780px;margin:0 auto;padding:22px}
-.top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px}
-.logo{font-family:ui-monospace,Menlo,Consolas,monospace;font-weight:700;letter-spacing:.04em;background:#1b1e26;color:#fff;padding:7px 13px;border-radius:7px;font-size:15px;display:inline-block}
-.brandimg{height:74px;width:auto;display:block;margin-bottom:8px}
-.co{margin-top:9px;color:#7a8290;font-size:10.5px;line-height:1.7}
-.doc{text-align:right}
-.doc h1{font-size:23px;margin:0 0 7px;letter-spacing:-.015em;font-weight:700}
-.doc .meta{color:#7a8290;font-size:11.5px;line-height:1.8}.doc .meta b{color:#1b1e26}
-.rule{height:3px;background:linear-gradient(90deg,#2f54eb,#1e3aa8 70%,#1b1e26);border-radius:3px;margin:10px 0 22px}
-.proj{display:flex;gap:24px;background:#f5f7fb;border:1px solid #e6e8ed;border-radius:12px;padding:14px 18px;margin-bottom:22px}
-.proj .pl{font-size:9.5px;text-transform:uppercase;letter-spacing:.07em;color:#9aa3b2;font-weight:700}
-.proj .pv{font-size:15px;font-weight:650;margin-top:3px}
-.sect{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#9aa3b2;font-weight:700;margin:0 0 8px}
-.gallery{display:grid;grid-template-columns:repeat(${imgs.length===1?1:2},1fr);gap:10px;margin-bottom:24px}
-.gimg{border:1px solid #e6e8ed;border-radius:12px;overflow:hidden;background:#f5f7fb;page-break-inside:avoid;display:flex;align-items:center;justify-content:center}
-.gimg img{width:100%;height:auto;display:block;max-height:430px;object-fit:contain}
-table{width:100%;border-collapse:collapse;margin-bottom:8px}
-th{text-align:left;font-size:9.5px;text-transform:uppercase;letter-spacing:.05em;color:#9aa3b2;border-bottom:2px solid #1b1e26;padding:9px 11px}
-td{padding:11px;border-bottom:1px solid #eef0f3;vertical-align:top}
-td.c,th.c{text-align:center;white-space:nowrap;width:46px}
-td.r,th.r{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
-.totals{margin-top:16px;margin-left:auto;width:320px}
-.totals .tr{display:flex;justify-content:space-between;padding:8px 2px;border-bottom:1px solid #eef0f3}
-.totals .tr .tl{color:#667085}.totals .tr .tv{font-variant-numeric:tabular-nums;font-weight:600}
-.totals .grand{margin-top:8px;background:#1b1e26;color:#fff;border-radius:11px;padding:14px 18px;display:flex;justify-content:space-between;align-items:center}
-.totals .grand .tl{color:#c9d4ff;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;font-weight:700}
-.totals .grand .tv{font-size:22px;font-weight:750;font-variant-numeric:tabular-nums}
-.remarks{margin-top:26px;border:1px solid #e6e8ed;border-left:3px solid #2f54eb;border-radius:11px;padding:15px 17px;background:#fbfcfe;page-break-inside:avoid}
-.remarks .rl{font-size:9.5px;text-transform:uppercase;letter-spacing:.06em;color:#9aa3b2;font-weight:700;margin-bottom:7px}
-.remarks .rv{white-space:pre-wrap}
-.foot{margin-top:32px;border-top:1px solid #e6e8ed;padding-top:15px;color:#9aa3b2;font-size:10px;display:flex;justify-content:space-between;gap:16px}
-.noprint{position:fixed;top:12px;right:12px}
-.noprint button{font:inherit;cursor:pointer;background:#2f54eb;color:#fff;border:0;border-radius:8px;padding:10px 18px;font-weight:600;box-shadow:0 3px 10px rgba(47,84,235,.32)}
-@media print{.noprint{display:none}.wrap{padding:0}}
+
+/* ---- header card */
+.head{position:relative;background:var(--night);color:#f4efe6;border-radius:18px;padding:24px 28px 22px;overflow:hidden}
+.head:before{content:"";position:absolute;right:-90px;top:-120px;width:340px;height:340px;border-radius:50%;background:radial-gradient(circle at 30% 30%,rgba(214,176,122,.28),rgba(214,176,122,0) 62%)}
+.head:after{content:"";position:absolute;left:0;right:0;bottom:0;height:3px;background:linear-gradient(90deg,var(--brass),var(--brass2) 45%,rgba(214,176,122,0))}
+.hrow{position:relative;display:flex;justify-content:space-between;align-items:flex-start;gap:20px}
+.brand{display:flex;align-items:center;gap:14px}
+.brand img{height:62px;width:auto;display:block}
+.brand .mail{font-size:10.5px;letter-spacing:.06em;color:#bdb5a6;border-left:1px solid #3a3b40;padding-left:14px;line-height:1.5}
+.meta{display:grid;grid-template-columns:auto auto;gap:3px 14px;font-size:10.5px;text-align:right;align-content:start}
+.meta dt{color:#a8a092;text-transform:uppercase;letter-spacing:.09em;font-size:9px;padding-top:2px}
+.meta dd{margin:0;font-weight:600;color:#f4efe6;font-variant-numeric:tabular-nums}
+.htitle{position:relative;margin-top:26px}
+.eyebrow{font-size:9.5px;letter-spacing:.22em;text-transform:uppercase;color:var(--brass2);font-weight:600}
+.htitle h1{margin:4px 0 0;font-size:34px;line-height:1.08;font-weight:500;letter-spacing:-.01em}
+.htitle .proj{margin-top:8px;font-size:15px;color:#d9d2c5}
+.htitle .proj b{color:#fff;font-weight:600}
+
+/* ---- pictures */
+.sect{display:flex;align-items:center;gap:12px;margin:24px 0 12px;font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--mute);font-weight:600}
+.sect:after{content:"";flex:1;height:1px;background:var(--line)}
+figure{margin:0}
+.hero{border-radius:14px;overflow:hidden;background:var(--sand);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;page-break-inside:avoid}
+.hero img{width:100%;height:auto;max-height:330px;object-fit:contain;display:block}
+.thumbs{display:grid;gap:10px;margin-top:10px}
+.thumbs.t1{grid-template-columns:1fr}.thumbs.t2{grid-template-columns:1fr 1fr}.thumbs.t3{grid-template-columns:1fr 1fr 1fr}
+.thumbs figure{border-radius:11px;overflow:hidden;background:var(--sand);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;page-break-inside:avoid}
+.thumbs img{width:100%;height:auto;max-height:170px;object-fit:contain;display:block}
+
+/* ---- items */
+table{width:100%;border-collapse:collapse}
+thead th{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--mute);font-weight:600;text-align:left;padding:0 10px 9px;border-bottom:1.5px solid var(--ink)}
+thead th.r{text-align:right}
+tbody td{padding:14px 10px;border-bottom:1px solid var(--line);vertical-align:baseline}
+td.n{width:42px;font-family:"Fraunces",Georgia,serif;color:var(--brass);font-size:15px}
+td.nm{font-weight:600;font-size:13.5px}
+td.q{white-space:nowrap;color:var(--ink2);width:70px}
+td.m{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;color:var(--ink2)}
+td.sum{color:var(--ink);font-weight:600}
+
+/* ---- totals */
+.close{display:flex;gap:22px;margin-top:20px;align-items:flex-end;break-inside:avoid}
+.close .note{flex:1}.close .tot{width:300px;flex:none}
+.note{font-size:11px;color:var(--ink2);line-height:1.6}
+.note b{color:var(--ink)}
+.tot .tr{display:flex;justify-content:space-between;padding:7px 4px;border-bottom:1px solid var(--line);font-size:12px}
+.tot .tr span:first-child{color:var(--ink2)}
+.tot .tr span:last-child{font-variant-numeric:tabular-nums;font-weight:600}
+.grand{margin-top:12px;background:var(--night);color:#f4efe6;border-radius:14px;padding:16px 20px;position:relative;overflow:hidden}
+.grand:after{content:"";position:absolute;left:20px;right:20px;top:0;height:2px;background:linear-gradient(90deg,var(--brass),var(--brass2))}
+.grand .gl{font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:#bdb5a6;font-weight:600}
+.grand .gv{font-family:"Fraunces",Georgia,serif;font-size:31px;line-height:1.15;margin-top:3px;color:var(--brass2);font-variant-numeric:lining-nums tabular-nums;letter-spacing:-.01em}
+.grand .gv small{font-size:17px;color:#e9dcc6;margin-left:4px}
+
+/* ---- remarks + footer */
+.remarks{margin-top:24px;background:var(--sand);border-radius:14px;padding:16px 20px 16px 22px;position:relative;page-break-inside:avoid}
+.remarks:before{content:"";position:absolute;left:0;top:14px;bottom:14px;width:3px;border-radius:3px;background:var(--brass)}
+.remarks .rl{font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--brass);font-weight:700;margin-bottom:6px}
+.remarks .rv{white-space:pre-wrap;color:var(--ink)}
+.foot{margin-top:28px;padding-top:14px;border-top:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:16px;font-size:10px;color:var(--mute)}
+.foot .thanks{font-family:"Fraunces",Georgia,serif;font-style:italic;font-size:13px;color:var(--ink2)}
+
+.noprint{position:fixed;top:14px;right:14px;z-index:5}
+.noprint button{font:600 13px "Inter",Arial,sans-serif;cursor:pointer;background:var(--night);color:#f4efe6;border:0;border-radius:10px;padding:11px 18px;box-shadow:0 6px 20px rgba(0,0,0,.25)}
+.noprint button:hover{background:#000}
+@media screen{body{background:#ebe7e0}.wrap{background:#fff;margin:24px auto;border-radius:6px;box-shadow:0 10px 40px rgba(40,30,10,.12);padding:28px}}
+@media print{.noprint{display:none}.wrap{padding:0;margin:0 auto;box-shadow:none}}
 /* one item: everything on one A4 page */
-body.one .gimg img{max-height:${imgs.length===1?380:260}px}
-body.one .gallery{margin-bottom:16px}
-body.one .proj{margin-bottom:16px}
+body.one .close,body.one .remarks,body.one .hero,body.one .thumbs figure{break-inside:auto;page-break-inside:auto}
+body.one .hero img{max-height:${imgs.length>1?300:400}px}
+body.one .thumbs img{max-height:150px}
+body.one .sect{margin:18px 0 10px}
 body.one .remarks{margin-top:18px}
 body.one .foot{margin-top:20px}
-body.measure .wrap{width:184mm;max-width:none;padding:0;margin:0}
+body.measure .wrap,body.fitted .wrap{width:184mm;max-width:none;padding:0;margin:0;box-shadow:none}
+body.fitted .wrap{transform-origin:top left}
+.fitbox{width:184mm;overflow:hidden;margin:0 auto}
+@media screen{body.fitted .fitbox{background:#fff;margin:24px auto;box-shadow:0 10px 40px rgba(40,30,10,.12);padding:0;box-sizing:content-box;border:28px solid #fff;border-radius:6px}}
 </style></head><body class="${multi?'':'one'}">
-<div class="noprint"><button onclick="window.print()">${lt?'🖨 Spausdinti / Įrašyti PDF':'🖨 Print / Save PDF'}</button></div>
+<div class="noprint"><button onclick="window.print()">${lt?'⎙ Spausdinti / Įrašyti PDF':'⎙ Print / Save PDF'}</button></div>
 <div class="wrap">
-  <div class="top">
-    <div><img class="brandimg" src="${LOGO_BLACK}" alt="Dėdės Baldai"><div class="co">info@dedesbaldai.lt</div></div>
-    <div class="doc"><h1>${lt?'Komercinis pasiūlymas':'Quotation'}</h1><div class="meta">${lt?'Nr.':'No.'} <b>${qno}</b><br>${lt?'Data':'Date'}: <b>${today}</b>${validStr?`<br>${lt?'Galioja iki':'Valid until'}: <b>${validStr}</b>`:''}</div></div>
-  </div>
-  <div class="rule"></div>
-  <div class="proj"><div><div class="pl">${lt?'Projektas':'Project'}</div><div class="pv">${esc(S.projectName||(lt?'(be pavadinimo)':'(untitled)'))}</div></div></div>
-  ${gallery?`<div class="sect">${lt?'Vizualizacijos':'Visualisations'}</div>${gallery}`:''}
+  <header class="head">
+    <div class="hrow">
+      <div class="brand"><img src="${LOGO_WHITE}" alt="Dėdės Baldai"><div class="mail">info@dedesbaldai.lt</div></div>
+      <dl class="meta"><dt>${lt?'Nr.':'No.'}</dt><dd>${qno}</dd><dt>${lt?'Data':'Date'}</dt><dd>${today}</dd>${validStr?`<dt>${lt?'Galioja iki':'Valid until'}</dt><dd>${validStr}</dd>`:''}</dl>
+    </div>
+    <div class="htitle"><h1 class="serif">${title}</h1><div class="proj">${lt?'Projektas':'Project'}: <b>${esc(proj)}</b></div></div>
+  </header>
+  ${hero?`<div class="sect">${lt?'Vizualizacija':'Visualisation'}</div>${hero}${thumbs}`:''}
   <div class="sect">${lt?'Pasiūlymas':'Quotation'}</div>
-  <table><thead><tr><th class="c">#</th><th>${lt?'Pavadinimas':'Item'}</th><th class="c">${lt?'Kiekis':'Qty'}</th>${multi?`<th class="r">${lt?'Kaina':'Unit'}</th>`:''}<th class="r">${lt?'Suma':'Amount'}</th></tr></thead><tbody>${rows}</tbody></table>
-  <div class="totals">
-    <div class="tr"><div class="tl">${lt?'Suma be PVM':'Subtotal excl. VAT'}</div><div class="tv">${eur(beVat)} €</div></div>
-    <div class="tr"><div class="tl">${lt?'PVM':'VAT'} (${rate}%)</div><div class="tv">${eur(vat)} €</div></div>
-    <div class="grand"><div class="tl">${lt?'Galutinė kaina su PVM':'Total incl. VAT'}</div><div class="tv">${eur(suVat)} €</div></div>
+  <table><thead><tr><th>#</th><th>${lt?'Pavadinimas':'Item'}</th><th>${lt?'Kiekis':'Qty'}</th>${multi?`<th class="r">${lt?'Kaina':'Unit'}</th>`:''}<th class="r">${lt?'Suma':'Amount'}</th></tr></thead><tbody>${rows}</tbody></table>
+  <div class="close">
+    <div class="note">${validStr?(lt?`Pasiūlymas galioja iki <b>${validStr}</b>.<br>`:`This quotation is valid until <b>${validStr}</b>.<br>`):''}${lt?'Kainos nurodytos eurais.':'Prices in euro.'}${rate?(lt?` Į galutinę kainą įskaičiuotas ${rate}% PVM.`:` The total includes ${rate}% VAT.`):''}</div>
+    <div class="tot">
+      <div class="tr"><span>${lt?'Suma be PVM':'Subtotal excl. VAT'}</span><span>${eur(beVat)} €</span></div>
+      <div class="tr"><span>${lt?'PVM':'VAT'} ${rate}%</span><span>${eur(vat)} €</span></div>
+      <div class="grand"><div class="gl">${lt?'Galutinė kaina':'Total'}${rate?(lt?' su PVM':' incl. VAT'):''}</div><div class="gv">${eur(suVat)}<small>€</small></div></div>
+    </div>
   </div>
   ${remarks?`<div class="remarks"><div class="rl">${lt?'Pastabos':'Remarks'}</div><div class="rv">${esc(remarks)}</div></div>`:''}
-  <div class="foot"><div>${validStr?(lt?'Pasiūlymas galioja iki '+validStr+'. Kainos eurais.':'Quote valid until '+validStr+'. Prices in EUR.'):(lt?'Kainos eurais.':'Prices in EUR.')}</div><div>${lt?'Dėkojame, kad renkatės Dėdės Baldai':'Thank you for choosing Dėdės Baldai'}</div></div>
+  <div class="foot"><div class="thanks">${lt?'Ačiū, kad renkatės Dėdės Baldai.':'Thank you for choosing Dėdės Baldai.'}</div><div>info@dedesbaldai.lt</div></div>
 </div>
-<script>
-function fitOnePage(){var b=document.body,w=document.querySelector('.wrap');if(!w||!b.classList.contains('one'))return;
-  w.style.zoom='';b.classList.add('measure');var mm=96/25.4,pageH=(297-28)*mm-6,h=w.scrollHeight;b.classList.remove('measure');
-  if(h>pageH){w.style.width='184mm';w.style.maxWidth='none';w.style.margin='0 auto';w.style.zoom=(pageH/h*0.985).toFixed(4);}}
-window.onload=function(){var imgs=[].slice.call(document.images),left=imgs.length,go=function(){fitOnePage();setTimeout(function(){try{window.print()}catch(e){}},400);};
-  if(!left)return go();imgs.forEach(function(im){if(im.complete){if(--left===0)go();}else{im.onload=im.onerror=function(){if(--left===0)go();};}});}
-<\/script>
 </body></html>`;
   const w=window.open('','_blank');
   if(!w){toast(lt?'Leiskite iškylančius langus (pop-ups)':'Please allow pop-ups');return;}
