@@ -169,7 +169,7 @@
       const re = sd === 'L' ? /^(KAIRE|SONAS K\.?P)/ : /^(DESINE|SONAS D\.?P)/;
       const c = parts.filter(p => p.cls === 'carc' && re.test(norm(p.name)));
       parts.forEach(p => { if (p.side === sd) p.side = ''; });
-      if (c.length) { const top = c.reduce((a, b) => b.L > a.L ? b : a); const maxL = Math.max(...parts.filter(p => p.cls === 'carc').map(p => p.L)); if (top.L >= 0.6 * maxL) top.side = sd; }
+      if (c.length) { const ar = p => p.L * p.W; const top = c.reduce((a, b) => ar(b) > ar(a) ? b : a); const maxA = Math.max(...parts.filter(p => p.cls === 'carc').map(ar)); if (ar(top) >= 0.4 * maxA) top.side = sd; }
     });
 
     // ---- overall size from carcass parts
@@ -200,7 +200,8 @@
     const ovenNiche = oven ? (Math.min(oven.L || 0, oven.W || 0) > 300 ? Math.max(oven.L, oven.W) : 595) + 5 : 0;
     const hasFronts = placeholder || parts.some(p => p.cls === 'fac' && /^FASADAS/.test(norm(p.name)));
     let hingeEst = false;
-    if (hasFronts && doors === 0 && drawers === 0 && !dish && W > 0 && H > 0) {
+    const lowOvenFront = oven && (H - ovenNiche) < 450;
+    if (hasFronts && doors === 0 && drawers === 0 && !dish && !lowOvenFront && W > 0 && H > 0) {
       const nd = W > 650 ? 2 : 1, dh = H - ovenNiche, per = dh <= 900 ? 2 : dh <= 1500 ? 3 : dh <= 2000 ? 4 : 5;
       doors = nd; addHw(HW.hinge, nd * per); hingeEst = true;
       warn.push(`Vyrių brėžinyje nėra — įvertinta ${nd} ${nd > 1 ? 'durys' : 'durys'} × ${per} vyriai. Patikrinkite (gal TIP-ON / stalčiai).`);
@@ -546,7 +547,8 @@
         name: c.name, W: c.W, D: c.D, H: c.H, type: c.type, use: d.use, thick: c.t, cols: 1, colW: [], sections: [],
         carcMat: '', carcPrice: d.carc, defFacadeMat: '', defFacadePrice: d.fac, hasBack: false, backType: 'hdf', backPrice: d.hdf,
         parts: c.parts.map(p => Object.assign({}, p)), hw: c.hw.map(h => ({ key: h.key, n: h.n })),
-        doors: c.doors, drawers: c.drawers, impFile: IMP.file, impPage: c.page, impWarn: c.warn.slice()
+        doors: c.doors, drawers: c.drawers, oven: c.oven, legs: c.legs, impFile: IMP.file, impPage: c.page, impWarn: c.warn.slice(),
+        impFacName: (IMP.info && IMP.info.facade) || '', impCarcName: (IMP.info && IMP.info.carcass) || ''
       });
       S.cabinets.push(cab);
     });
