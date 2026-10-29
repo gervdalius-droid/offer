@@ -415,8 +415,28 @@
     return {
       page: pageNo, sp: pi.sp, mname: pi.mname, name: `${pi.sp ? pi.sp + ' · ' : ''}${kind} ${Math.round(W)}${what ? ' · ' + what : ''}`,
       type, W: Math.round(W), H: Math.round(H), D: Math.round(D), t, parts, hw: Object.keys(hw).map(k => ({ key: k, n: Math.round(hw[k] * 1000) / 1000 })),
-      doors, drawers, legs: legs ? 1 : 0, oven, dishwasher: dish, shelves, frontsEst: parts.some(p => p.est && p.cls === 'fac'), hingeEst, warn
+      doors, drawers, legs: legs ? 1 : 0, legH, oven, dishwasher: dish, shelves, frontsEst: parts.some(p => p.est && p.cls === 'fac'), hingeEst, warn
     };
+  }
+  /** wall elevations (PJŪVIS A–A …): furniture top, gap to the ceiling, cabinets on that wall */
+  function parseBrzWalls(pages) {
+    const walls = [];
+    for (const pg of pages) {
+      if (brzHeader(pg)) continue;
+      const it = pg.items, ti = it.find(i => /^PJ[UŪ]VIS\s+\S+/i.test(i.s.trim()));
+      if (!ti) continue;
+      const top = Math.max(0, ...it.filter(i => i.rot && /^baldai\s*[\d.]+/i.test(i.s.trim())).map(i => numv(i.s)));
+      let gap = 0;
+      const g = it.find(i => /iki lub/i.test(i.s));
+      if (g) {
+        const own = g.s.match(/([\d.]+)\s*iki lub/i);
+        if (own) gap = +own[1];
+        else { const nb = it.filter(i => i !== g && Math.abs(i.y - g.y) < 4 && i.x < g.x && g.x - (i.x + i.w) < 40 && /^\+?[\d.]+$/.test(i.s.trim())).sort((a, b) => b.x - a.x)[0]; if (nb && !/^\+/.test(nb.s.trim())) gap = numv(nb.s); }
+      }
+      const sps = [...new Set(it.filter(i => !i.rot && /^SP-\d+$/.test(i.s.trim())).map(i => i.s.trim()))];
+      walls.push({ name: ti.s.trim().replace(/^PJ[UŪ]VIS\s+/i, '').replace(/\s*\(.*$/, ''), top, gap, sps });
+    }
+    return walls;
   }
   function parseBrz(pages) {
     const O = parseBrzOverview(pages), cabinets = [], skipped = [];
@@ -431,6 +451,8 @@
     const m = O.mats, info = { format: 'BREZINIAI' };
     if (m.facade) info.facade = m.facade; if (m.carcass) info.carcass = m.carcass; if (m.back) info.back = m.back;
     if (m.top) info.top = m.top; if (m.plinth) info.plinth = m.plinth; if (m.wall) info.wall = m.wall;
+    info.walls = parseBrzWalls(pages);
+    info.top = Math.max(0, ...info.walls.map(w => w.top));
     const pn = pages[0] && pages[0].items.map(i => i.s).join('\n').match(/Projektas:\s*([^\n]+)/);
     if (pn) info.project = pn[1].trim();
     return { info, cabinets, skipped };
@@ -454,6 +476,14 @@
   /* ------------------------------------------------------------------
      2. PRICING of a part-list cabinet (same rates as calcCabinet)
      ------------------------------------------------------------------ */
+  /** cover panel for a visible side: floor → top of the furniture for tall units, floor → top for base units, cabinet height for wall units; depth +24 mm (front + gap) */
+  function coverSize(c) {
+    const nm = v => { const n = parseFloat(v); return isFinite(n) ? n : 0; };
+    const H = nm(c.H), D = nm(c.D), legH = nm(c.legH) || (nm(c.legs) ? 100 : 0);
+    const h = nm(c.coverH) > 0 ? nm(c.coverH) : c.type === 'ŪKINĖ' ? (nm(c.impTop) > H ? nm(c.impTop) : H + legH) : c.type === 'PAKABINAMOS' ? H : H + legH;
+    const d = nm(c.coverD) > 0 ? nm(c.coverD) : Math.ceil((D + 24) / 10) * 10;
+    return { h: Math.round(h), d: Math.round(d) };
+  }
   function calcParts(c, S) {
     const nm = v => { const n = parseFloat(v); return isFinite(n) ? n : 0; };
     const cut = nm(S.rates.cut), edge = nm(S.rates.edge);
@@ -463,12 +493,19 @@
     (c.parts || []).forEach(p => {
       const q = nm(p.qty), L = nm(p.L), W = nm(p.W);
       if (p.cls === 'skip' || q <= 0 || L <= 0 || W <= 0) { perPart.push(0); return; }
-      const visFac = (p.side === 'L' && c.visLeft) || (p.side === 'R' && c.visRight);
+      const visFac = !c.coverPanels && ((p.side === 'L' && c.visLeft) || (p.side === 'R' && c.visRight));
       const grp = p.cls === 'fac' ? 'facade' : p.cls === 'shelf' ? 'shelf' : p.cls === 'part' ? 'part' : p.cls === 'drawer' ? 'drawer' : (p.cls === 'hdf' || p.cls === 'back') ? 'back' : 'box';
       const price = (p.cls === 'fac' || visFac) ? facP : p.cls === 'hdf' ? hdfP : carcP;
       const a = L * W / 1e6 * q, cl = 2 * (L + W) / 1000 * q, bl = (nm(p.eL) * L + nm(p.eW) * W) / 1000 * q;
       const g = G[grp]; g.m2 += a; g.mat += a * price; g.cut += cl; g.band += bl;
       perPart.push(a * price + cl * cut + bl * edge);
+    });
+    // visible side of a macro-drawing cabinet = a separate cover panel in the front material (as in the Excel sheet), the side stays carcass
+    let coverM2 = 0;
+    if (c.coverPanels) ['L', 'R'].forEach(sd => {
+      if (!(sd === 'L' ? c.visLeft : c.visRight)) return;
+      const { h: L, d: W } = coverSize(c), a = L * W / 1e6, per = 2 * (L + W) / 1000, g = G.facade;
+      g.m2 += a; g.mat += a * facP; g.cut += per; g.band += per; coverM2 += a;
     });
     const hwBreak = {}; let hwCost = 0;
     (c.hw || []).forEach(h => {
@@ -482,12 +519,23 @@
     const net = mat + cutLen * cut, withLam = net + bandLen * edge;
     return {
       G, hwCost, hwBreak, secOut: [], cols: 1, colW: [nm(c.W)], colUsed: [], perPart, partsCab: true,
-      facadeM2: G.facade.m2, carcM2: G.box.m2 + G.shelf.m2 + G.part.m2, drawerM2: G.drawer.m2,
+      coverM2, facadeM2: G.facade.m2, carcM2: G.box.m2 + G.shelf.m2 + G.part.m2, drawerM2: G.drawer.m2,
       cutLen, bandLen, net, withLam, withHw: withLam + hwCost, valid: true, over: false
     };
   }
 
-  const API = { norm, parseTable, parseInfo, buildCabinet, parseDrawing, extractPages, calcParts, HW, HWX, parseBrz, parseBrzTable, colourName };
+  /** ceiling fillers from the wall elevations: one strip per wall over the wall/tall units, gap high */
+  function fillersOf(info, cabs) {
+    const out = [];
+    (info.walls || []).forEach(w => {
+      if (!(w.gap >= 20)) return;
+      const up = cabs.filter(c => w.sps.includes(c.sp) && (c.type !== 'PASTATOMOS' || c.H > 1200));
+      const L = up.reduce((s, c) => s + (+c.W || 0), 0);
+      if (L > 0) out.push({ note: `Užpildas iki lubų ${w.name} (${up.map(c => c.sp).join(', ')})`, L: Math.round(L), W: Math.round(w.gap), qty: 1 });
+    });
+    return out;
+  }
+  const API = { norm, parseTable, parseInfo, buildCabinet, parseDrawing, extractPages, calcParts, coverSize, fillersOf, HW, HWX, parseBrz, parseBrzTable, colourName };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   root.DBImport = API;
   if (typeof document === 'undefined' || typeof root.calcCabinet !== 'function') return;   // Node / app not present
@@ -554,7 +602,7 @@
       const m = document.getElementById('ipm_' + c.id); if (m) m.textContent = sumLine(c, r);
     });
   };
-  const sumLine = (c, r) => `${L2('Fasadai', 'Fronts')} ${fx(r.facadeM2, 2)} m² · ${L2('karkasas', 'carcass')} ${fx(r.carcM2, 2)} m² · ${L2('stalčiai', 'drawers')} ${fx(r.drawerM2, 2)} m² · ${L2('pjovimas', 'cutting')} ${fx(r.cutLen, 1)} m · ${L2('briaunos', 'edging')} ${fx(r.bandLen, 1)} m`;
+  const sumLine = (c, r) => `${L2('Fasadai', 'Fronts')} ${fx(r.facadeM2, 2)} m²${r.coverM2 ? ` (${L2('iš jų apdaila', 'incl. cover panels')} ${fx(r.coverM2, 2)})` : ''} · ${L2('karkasas', 'carcass')} ${fx(r.carcM2, 2)} m² · ${L2('stalčiai', 'drawers')} ${fx(r.drawerM2, 2)} m² · ${L2('pjovimas', 'cutting')} ${fx(r.cutLen, 1)} m · ${L2('briaunos', 'edging')} ${fx(r.bandLen, 1)} m`;
 
   function partsMainHTML(i, c, r) {
     const S = S_();
@@ -582,13 +630,14 @@
         <td class="num mono">€ ${eur(+((S.rates.hw || {})[h.key]) || 0)}${/€\/m/.test(h.key) ? '/m' : ''}</td>
         <td><button class="icon-btn" onclick="DBImport.delHw(${i},${j})">✕</button></td></tr>`).join('');
     const openP = OPEN.has('impP_' + c.id) ? 'open' : '';
+    const cs = coverSize(c), cov = c.coverPanels ? ` <span class="muted" style="font-size:11px">(${L2('apdailos plokštė', 'cover panel')} ${cs.h}×${cs.d})</span>` : '';
     return `
       <div class="impsrc">📄 ${esc(c.impFile || L2('Brėžinys', 'Drawing'))} · ${L2('lapas', 'page')} ${c.impPage || '–'}${c.impMacro ? ' · ' + esc((c.impSp ? c.impSp + ' ' : '') + c.impMacro) : ''} · <b>${c.W}×${c.H}×${c.D}</b> mm</div>
       ${warn}
       <div class="fgrid" style="margin-top:10px">${facF}${carcF}${hdfF}${useF}</div>
       <div class="checks" style="margin-top:8px">
-        <label class="ck"><input type="checkbox" ${c.visLeft ? 'checked' : ''} onchange="upCab(${i},'visLeft',this.checked)">${t('fVisL')}</label>
-        <label class="ck"><input type="checkbox" ${c.visRight ? 'checked' : ''} onchange="upCab(${i},'visRight',this.checked)">${t('fVisR')}</label>
+        <label class="ck"><input type="checkbox" ${c.visLeft ? 'checked' : ''} onchange="upCab(${i},'visLeft',this.checked)">${t('fVisL')}${cov}</label>
+        <label class="ck"><input type="checkbox" ${c.visRight ? 'checked' : ''} onchange="upCab(${i},'visRight',this.checked)">${t('fVisR')}${cov}</label>
       </div>
       <div class="muted mono" style="font-size:11px;margin-top:8px" id="ipm_${c.id}">${sumLine(c, r)}</div>
       <details class="more" ${openP} ontoggle="tglOpen('impP_${c.id}',this.open)">
@@ -692,6 +741,7 @@
     const info = IMP.info, infoTxt = [['facade', L2('Fasadas', 'Facade')], ['carcass', L2('Karkasas', 'Carcass')], ['back', L2('Nugaros', 'Backs')], ['top', L2('Stalviršis', 'Worktop')], ['plinth', L2('Cokolis', 'Plinth')], ['wall', L2('Sienelė', 'Splashback')], ['handles', L2('Rankenos', 'Handles')]].filter(([k]) => info[k]).map(([k, l]) => `${l}: <b>${esc(colourName(info[k]))}</b>`).join(' · ');
     const unpriced = [...new Set(IMP.cabinets.filter(c => c.on).flatMap(c => c.hw.map(h => h.key)))].filter(k => !(+((S.rates.hw || {})[k]) > 0));
     const nEst = IMP.cabinets.filter(c => c.on && c.frontsEst).length;
+    const fil = fillersOf(IMP.info || {}, IMP.cabinets.filter(c => c.on));
     b.innerHTML = `
       <div class="src">📄 <b>${esc(IMP.file)}</b>${IMP.info.format === 'BREZINIAI' ? ' · ' + L2('makro brėžiniai', 'macro drawings') : ''} · ${IMP.cabinets.length} ${L2('spintelių', 'cabinets')}${IMP.skipped.length ? ` · ${L2('lapai be detalių lentelės', 'pages without a cut list')}: ${IMP.skipped.join(', ')}` : ''}${infoTxt ? '<br>' + infoTxt : ''}</div>
       <div class="ibar">
@@ -708,6 +758,7 @@
       <div class="tblwrap"><table class="cabs"><colgroup><col class="c1"><col class="c2"><col><col class="c4"><col class="c5"><col class="c6"><col class="c7"></colgroup><thead><tr><th></th><th>${L2('Lapas', 'Page')}</th><th>${L2('Spintelė', 'Cabinet')}</th><th>W×H×D</th><th>${L2('Fasadai', 'Fronts')}</th><th>${L2('Furnitūra', 'Hardware')}</th><th class="num">${L2('Savikaina', 'Cost')}</th></tr></thead>
       <tbody>${rows}</tbody><tfoot><tr><td colspan="6" style="text-align:right"><b>${L2('Pažymėtų spintelių savikaina (be priedų ir antkainių)', 'Selected cabinets cost (before overheads and margin)')}</b></td><td class="num mono"><b>€ ${eur(tot)}</b></td></tr></tfoot></table></div>
       <div class="ibar" style="justify-content:flex-end">
+        ${fil.length ? `<label class="ck" title="${esc(fil.map(f => f.note + ': ' + f.L + '×' + f.W).join('\n'))}"><input type="checkbox" id="dbImpFill" ${IMP.fill !== false ? 'checked' : ''} onchange="DBImport.fillTog(this.checked)"> ${L2('Užpildai iki lubų', 'Ceiling fillers')} (${fil.map(f => f.L + '×' + f.W).join(' + ')} mm → ${L2('Papildomos plokštės', 'Extra boards')})</label>` : ''}
         <label class="ck"><input type="checkbox" id="dbImpReplace"> ${L2('Pakeisti esamas spinteles', 'Replace existing cabinets')}</label>
         <button class="btn primary" onclick="DBImport.commit()">＋ ${L2('Pridėti', 'Add')} ${IMP.cabinets.filter(c => c.on).length} ${L2('spinteles', 'cabinets')}</button>
       </div>`;
@@ -735,6 +786,7 @@
   };
   API.parsed = function (fileName, res) { ensureModal(); res.cabinets.forEach(c => c.on = true); IMP = Object.assign(res, { file: fileName, prices: defaults() }); drawModal(); document.getElementById('dbImpModal').classList.add('on'); };
   API.reset = function () { IMP = null; drawModal(); };
+  API.fillTog = function (v) { IMP.fill = v; };
   API.tog = function (k, v) { IMP.cabinets[k].on = v; drawModal(); };
   API.ren = function (k, v) { IMP.cabinets[k].name = v; };
   API.price = function (k, v) { IMP.prices[k] = k === 'use' ? v : num(v); clearTimeout(API._pt); API._pt = setTimeout(drawModal, 350); };
@@ -746,6 +798,7 @@
     const used = new Set(sel.flatMap(c => c.hw.map(h => h.key)));
     S.rates.hwCustom = S.rates.hwCustom || [];
     [HW.gola, HW.handle, HW.legs, HWX.rail, HWX.railHold, HWX.cargo].forEach(k => { if (used.has(k) && !S.rates.hwCustom.some(h => h.name === k)) { S.rates.hwCustom.push({ name: k, cat: 'other' }); if (S.rates.hw[k] === undefined) S.rates.hw[k] = 0; } });
+    if (used.has(HWX.cargo) && !(+S.rates.hw[HWX.cargo] > 0)) S.rates.hw[HWX.cargo] = 2 * (+S.rates.hw[HW.tandem] || 26);   // as priced in the Excel sheet: cargo = 2 × Tandem
     const replace = document.getElementById('dbImpReplace') && document.getElementById('dbImpReplace').checked;
     if (replace) S.cabinets = [];
     sel.forEach(c => {
@@ -756,10 +809,16 @@
         parts: c.parts.map(p => Object.assign({}, p)), hw: c.hw.map(h => ({ key: h.key, n: h.n })),
         doors: c.doors, drawers: c.drawers, oven: c.oven, legs: c.legs, impFile: IMP.file, impPage: c.page, impWarn: c.warn.slice(),
         dishwasher: !!c.dishwasher, shelves: c.shelves || 0, impSp: c.sp || '', impMacro: c.mname || '',
+        coverPanels: IMP.info.format === 'BREZINIAI', impTop: IMP.info.top || 0, legH: c.legH || 0,
         impFacName: colourName((IMP.info && IMP.info.facade) || ''), impCarcName: colourName((IMP.info && IMP.info.carcass) || '')
       });
       S.cabinets.push(cab);
     });
+    if (IMP.info.format === 'BREZINIAI' && IMP.fill !== false) {
+      S.boards = S.boards || [];
+      fillersOf(IMP.info, sel).forEach(f => { if (!S.boards.some(b => b.note === f.note)) S.boards.push({ id: Math.random().toString(36).slice(2, 9), note: f.note, L: f.L, W: f.W, qty: f.qty, mat: '', m2price: d.fac, lamL: 2, lamW: 2, waste: 20, markup: 5 }); });
+      if (root.renderBoards) root.renderBoards();
+    }
     if (!S.projectName && IMP.file) { S.projectName = (IMP.info && IMP.info.project) || IMP.file.replace(/(_GAMYBA|_BREZINIAI(_\d+)?)?\.pdf$/i, ''); const pn = document.getElementById('projName'); if (pn) pn.value = S.projectName; }
     API.close();
     if (root.renderRates) root.renderRates();
