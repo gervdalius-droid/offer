@@ -45,7 +45,7 @@
   /** part-list cabinet (drawing import) → sections */
   function sectionsFromParts(c) {
     const P = c.parts || [], q = p => num(p.qty) || 0;
-    const shelves = P.filter(p => p.cls === 'shelf').reduce((s, p) => s + q(p), 0);
+    const shelves = P.filter(p => p.cls === 'shelf').reduce((s, p) => s + q(p), 0) || Math.max(0, Math.min(4, Math.round(num(c.shelves))));
     const drawers = num(c.drawers), doors = num(c.doors), oven = !!c.oven || P.some(p => /ORKAIT/i.test(p.name || ''));
     const S = [];
     const dr = (n, o) => Object.assign(newSection('drawers'), { nDrawers: n, hw: 'BLUM TANDEMBOX', rail: 500 }, o);

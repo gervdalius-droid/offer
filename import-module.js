@@ -232,8 +232,213 @@
     };
   }
 
+  /* ------------------------------------------------------------------
+     1b. BRĖŽINIAI format (*_BREZINIAI_n.pdf, drawn by the SolidWorks macro):
+         p1 overview (Spintelės table + Medžiagos), then one cabinet per page:
+         "SP-01 NAME", "P x A x G: W x H x D mm (korpusas … + kojelės …)",
+         table Nr. | Pavadinimas / Detalės kodas | Vnt. | L | W | T | Medžiaga
+         (hardware rows: Medžiaga = "furnitūra") and "Fasadai: w × h (n) / …".
+     ------------------------------------------------------------------ */
+  const BRZ_HEAD = { 'NR.': 'no', NR: 'no', PAVADINIMAS: 'name', 'DETALES KODAS': 'name', 'VNT.': 'Q', VNT: 'Q', L: 'L', W: 'W', T: 'T', MEDZIAGA: 'mat' };
+  const HWX = { rail: 'DRABUŽIŲ VAMZDIS (€/m)', railHold: 'VAMZDŽIO LAIKIKLIS', cargo: 'CARGO MECHANIZMAS' };
+  const isBrz = pages => pages.some(pg => brzHeader(pg));
+  function brzHeader(pg) {
+    const it = pg.items.filter(i => !i.rot);
+    const q = it.find(i => /^VNT\.?$/.test(norm(i.s)));
+    if (!q || !it.some(i => norm(i.s) === 'MEDZIAGA' && Math.abs(i.y - q.y) < 4)) return null;
+    const heads = it.filter(i => Math.abs(i.y - q.y) < 4 && BRZ_HEAD[norm(i.s)]).map(h => ({ k: BRZ_HEAD[norm(h.s)], x0: h.x, cx: h.x + h.w / 2 })).sort((a, b) => a.x0 - b.x0);
+    return { y: q.y, heads };
+  }
+  /** one cabinet page's table → [{no,name,Q,L,W,T,mat,hw}] */
+  function parseBrzTable(pg) {
+    const H = brzHeader(pg); if (!H) return null;
+    const col = k => H.heads.find(h => h.k === k);
+    const nameH = col('name'), qH = col('Q'), x0 = Math.min(...H.heads.map(h => h.x0)) - 15;
+    if (!nameH || !qH) return null;
+    const body = pg.items.filter(i => !i.rot && i.y > H.y + 4 && i.x >= x0).sort((a, b) => a.y - b.y || a.x - b.x);
+    const lines = [];
+    for (const i of body) {
+      let r = lines.find(r => Math.abs(r.y - i.y) < 2.5); if (!r) lines.push(r = { y: i.y, v: {} });
+      let k;
+      if (i.x >= nameH.x0 - 3 && i.x < qH.x0 - 8) k = 'name';
+      else { const cx = i.x + i.w / 2; let bd = 1e9; H.heads.filter(h => h.k !== 'name').forEach(h => { const d = Math.abs(h.cx - cx); if (d < bd) { bd = d; k = h.k; } }); }
+      r.v[k] = (r.v[k] ? r.v[k] + ' ' : '') + i.s.trim();
+    }
+    lines.sort((a, b) => a.y - b.y);
+    let end = lines.length;
+    for (let k = 0; k < lines.length; k++) if ((k && lines[k].y - lines[k - 1].y > 40) || /ISSKLEIST|^MASTELIS/.test(norm(Object.values(lines[k].v).join(' ')))) { end = k; break; }
+    const rows = [];
+    for (const l of lines.slice(0, end)) {
+      if (!l.v.no && rows.length && l.v.name && !l.v.Q) { rows[rows.length - 1].name += ' ' + l.v.name; continue; }   // wrapped name
+      if (!l.v.no || !l.v.Q || !(l.v.name || l.v.mat)) continue;                                                       // exploded-view balloons etc.
+      const mat = l.v.mat || '';
+      rows.push({ no: numv(l.v.no), name: l.v.name || '', Q: numv(l.v.Q) || 1, L: numv(l.v.L), W: numv(l.v.W), T: numv(l.v.T), mat, hw: /FURNIT/.test(norm(mat)) });
+    }
+    return rows;
+  }
+  /** overview page: Spintelės (SP id → name, type, size) and Medžiagos */
+  function parseBrzOverview(pages) {
+    const cabs = {}, mats = {};
+    for (const pg of pages.slice(0, 3)) {
+      const it = pg.items.filter(i => !i.rot);
+      const sp = it.find(i => norm(i.s) === 'SPINTELES');
+      if (sp) {
+        const rows = []; it.filter(i => i.y > sp.y + 4 && i.x >= sp.x - 6).sort((a, b) => a.y - b.y || a.x - b.x).forEach(i => { let r = rows.find(r => Math.abs(r.y - i.y) < 2.5); if (!r) rows.push(r = { y: i.y, s: [] }); r.s.push(i.s.trim()); });
+        rows.forEach(r => { const m = r.s.join(' ').match(/^(SP-\d+)\s+(\S+)\s+(\S+)\s+([\d.]+)\s*[×x]\s*([\d.]+)\s*[×x]\s*([\d.]+)/); if (m) cabs[m[1]] = { name: m[2], kind: norm(m[3]), W: +m[4], H: +m[5], D: +m[6] }; });
+      }
+      const mh = it.find(i => norm(i.s) === 'MEDZIAGOS');
+      if (mh) {
+        const L = it.filter(i => i.y > mh.y + 4 && i.y < mh.y + 200 && i.x > mh.x && i.x < mh.x + 200).sort((a, b) => a.y - b.y);
+        const KEY = [[/^FASAD/, 'facade'], [/^KORPUS/, 'carcass'], [/^NUGAR/, 'back'], [/^STALVIRS/, 'top'], [/^SIENEL|HPL/, 'wall'], [/^COKOL/, 'plinth']];
+        for (let k = 0; k < L.length - 1; k++) {
+          const key = (KEY.find(x => x[0].test(norm(L[k].s))) || [])[1]; if (!key || mats[key] !== undefined) continue;
+          const v = L[k + 1].s.trim();
+          mats[key] = /NENURODYTA/.test(norm(v)) ? '' : v.replace(/^tekst\S*:\s*/i, '').replace(/^spalva\s*/i, '');
+          k++;
+        }
+      }
+      if (sp || mh) break;
+    }
+    return { cabs, mats };
+  }
+  // "#ffffff" → a colour word the 3D view understands; decor names pass through
+  function colourName(v) {
+    v = String(v || '').trim(); if (!v) return '';
+    const m = v.match(/^#?([0-9a-f]{6})$/i);
+    if (!m) return /QUERCIA|ROVERE|OAK|AZUOL/.test(norm(v)) ? v + ' (ąžuolas)' : v;
+    const n = parseInt(m[1], 16), r = n >> 16, g = (n >> 8) & 255, b = n & 255, mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+    const nm = mx > 235 && mx - mn < 25 ? 'balta' : mx < 50 ? 'juoda' : mx - mn < 25 ? (mx < 110 ? 'antracitas' : 'pilka') : b >= r && b >= g ? 'mėlyna' : g >= r ? 'žalia' : r - b > 90 && g < 120 ? 'raudona' : 'smėlio';
+    return nm + ' ' + v.toLowerCase();
+  }
+  function brzPageInfo(pg, tableY) {
+    const it = pg.items.filter(i => !i.rot).sort((a, b) => a.y - b.y || a.x - b.x);
+    const tl = it.find(i => i.y < tableY && /^SP-\d+\s+\S/.test(i.s.trim())) || it.find(i => /^LAPAS: SP-\d+/.test(norm(i.s)));
+    const tm = tl ? tl.s.trim().replace(/^Lapas:\s*/i, '').match(/^(SP-\d+)\s+(.+)$/) : null;
+    const all = it.map(i => i.s.trim()).join('\n');
+    const sz = all.match(/P\s*x\s*A\s*x\s*G:\s*([\d.]+)\s*x\s*([\d.]+)\s*x\s*([\d.]+)/i);
+    const kor = all.match(/korpusas\s*([\d.]+)(?:\s*\+\s*kojel\S*\s*([\d.]+))?/i);
+    let fl = it.findIndex(i => /^Fasadai:/i.test(i.s.trim())), ftxt = '';
+    if (fl >= 0) { ftxt = it[fl].s; for (let k = fl + 1; k < it.length && it[k].y - it[fl].y < 30; k++) if (Math.abs(it[k].x - it[fl].x) < 3 && /^[\/\d]/.test(it[k].s.trim()) && /×/.test(it[k].s)) ftxt += ' ' + it[k].s; }
+    const fronts = []; ftxt.replace(/([\d.]+)\s*×\s*([\d.]+)\s*\((\d+)\)/g, (_, w, h, n) => fronts.push({ w: +w, h: +h, n: +n }));
+    const shared = (all.match(/bendras fasadas su\s*(SP-\d+)/i) || [])[1] || '', covers = (all.match(/dengia ir\s*(SP-\d+)/i) || [])[1] || '';
+    return { sp: tm ? tm[1] : '', mname: tm ? tm[2].trim() : '', W: sz ? +sz[1] : 0, H: sz ? +sz[2] : 0, D: sz ? +sz[3] : 0, korp: kor ? +kor[1] : 0, legH: kor && kor[2] ? +kor[2] : 0, fronts, shared, covers };
+  }
+
+  /** one BRĖŽINIAI cabinet page → cabinet draft (same shape as buildCabinet) */
+  function buildBrzCabinet(rows, pi, ov, pageNo) {
+    const parts = [], hw = {}, warn = [], mn = norm(pi.mname);
+    const addHw = (key, n) => { if (n > 0) hw[key] = (hw[key] || 0) + n; };
+    let hinges = 0, drawers = 0, legs = 0, oven = /ORKAIT/.test(mn), plates = 0;
+    const tipon = /TIP-?ON/.test(mn), dish = /INDAPLOV/.test(mn), fridge = /SALD/.test(mn), cargo = /CARGO/.test(mn);
+    for (const r of rows) {
+      const n = norm(r.name), Q = r.Q || 1;
+      if (r.hw) {
+        if (/LANKST/.test(n)) { hinges += Q; continue; }
+        if (/PLOKSTEL/.test(n)) { plates += Q; continue; }                                        // hinge plates: in the hinge price
+        if (/TANDEMBOX/.test(n)) { addHw(HW.tbox, Q); drawers += Q; continue; }
+        if (/TANDEM/.test(n)) { addHw(HW.tandem, Q); drawers += Q; continue; }
+        if (/KOJEL|^KOJOS/.test(n)) { legs += Q; continue; }
+        if (/VAMZDIS/.test(n)) { addHw(HWX.rail, Math.round((numv((n.match(/(\d+)\s*MM/) || [])[1]) || 0) * Q) / 1000); continue; }
+        if (/VAMZDZIO LAIKIKL/.test(n)) { addHw(HWX.railHold, Q); continue; }
+        if (/GOLA/.test(n)) { addHw(HW.gola, Math.round((numv((n.match(/(\d+)\s*MM/) || [])[1]) || 0) * Q) / 1000); continue; }
+        if (/RANKEN/.test(n)) { addHw(HW.handle, Q); continue; }
+        if (/KONFIRMAT|EKSC|EKSENTR|KAISTIS|KAISCI|MEDSRAIG|SAVISRIEG|VARZT|SMULKI/.test(n)) continue;   // fasteners → app's €/m² line
+        warn.push(`Furnitūra „${r.name}" ×${Q} — neatpažinta, pridėkite ranka`); continue;
+      }
+      if (!(r.L > 0 && r.W > 0)) { if (n) warn.push(`„${r.name}" be matmenų — praleista`); continue; }
+      const T = r.T || 18, mat = norm(r.mat);
+      let cls = T <= 6 || /^PLAUSAS|^HDF|^3 MM/.test(n) || /^3 MM|HDF/.test(mat) ? 'hdf' : /^FASADAS|^IMITACIJA/.test(n) ? 'fac' : /^NUGARA$/.test(n) ? 'back' : /LENTYNA/.test(n) ? 'shelf' : /^PERTVARA/.test(n) ? 'part' : (/^STALCI/.test(n) || (T >= 15 && T <= 16.5)) ? 'drawer' : 'carc';
+      let name = r.name, extra = null;
+      const appl = Math.min(r.L, r.W) >= 540 && Math.max(r.L, r.W) <= 605 && (/ORKAIT/.test(n) || (oven && cls === 'carc') || (!/LMDP|MDF|HDF/.test(mat) && /BUIT/.test(mn)));
+      if (appl) { cls = 'skip'; oven = true; name += ' (prietaisas)'; extra = { appliance: true }; }
+      const e = defaultEdges(n, cls);
+      parts.push(Object.assign({ name, L: r.L, W: r.W, T, qty: Q, cls, eL: e[0], eW: e[1], side: sideOf(n) }, extra || {}));
+    }
+    // ---- fronts: the page's "Fasadai: w × h (n)" groups find their rows in the table (any orientation, ±1 mm)
+    const near = (a, b) => Math.abs(a - b) <= 1.01;
+    const fits = (p, f) => (near(p.L, f.w) && near(p.W, f.h)) || (near(p.L, f.h) && near(p.W, f.w));
+    const frontList = [];   // {w,h} per front leaf
+    for (const f of pi.fronts) {
+      let need = f.n;
+      const cand = parts.filter(p => (p.cls === 'carc' || p.cls === 'fac' || p.cls === 'back') && p.T >= 16 && fits(p, f) && !p._f).sort((a, b) => (b.cls === 'fac') - (a.cls === 'fac'));
+      for (const p of cand) {
+        if (need <= 0) break;
+        if (p.qty > need) { const rest = Object.assign({}, p, { qty: p.qty - need }); p.qty = need; parts.splice(parts.indexOf(p) + 1, 0, rest); }
+        p.cls = 'fac'; p._f = 1; const e = defaultEdges('', 'fac'); p.eL = e[0]; p.eW = e[1]; p.side = ''; need -= p.qty;
+      }
+      for (let k = 0; k < f.n; k++) frontList.push({ w: f.w, h: f.h });
+      if (need > 0) { parts.push({ name: 'Fasadas ' + f.w + '×' + f.h + ' (iš „Fasadai")', L: f.h, W: f.w, T: 18, qty: need, cls: 'fac', eL: 2, eW: 2, side: '', est: true }); warn.push(`Fasadas ${f.w}×${f.h} ×${need} nerastas lentelėje — pridėtas iš „Fasadai" eilutės`); }
+    }
+    parts.filter(p => p.cls === 'fac' && !p._f).forEach(p => { for (let k = 0; k < p.qty; k++) frontList.push({ w: Math.min(p.L, p.W), h: Math.max(p.L, p.W) }); });
+    parts.forEach(p => delete p._f);
+    // ---- size, type
+    const legH = pi.legH || (legs ? 100 : 0);
+    const W = pi.W || ov.W || 0, D = pi.D || ov.D || 0;
+    let H = pi.korp >= 300 ? pi.korp : (pi.H || ov.H || 0) - legH;     // carcass height (legs come on top in the app)
+    if (dish || !(H >= 300)) H = pi.H || ov.H || H;                   // dishwasher page: only the rail pieces → full niche height
+    const t = 18;
+    // outer sides (for "visible left/right"): named KAIRE/DESINE, else the two tallest full-depth boards
+    if (!parts.some(p => p.side)) {
+      const hk = H;
+      const sides = parts.filter(p => p.cls === 'carc' && Math.max(p.L, p.W) >= hk - 40 && Math.max(p.L, p.W) <= hk + 2 && Math.min(p.L, p.W) >= 0.5 * D).sort((a, b) => b.L * b.W - a.L * a.W);
+      if (sides.length === 1 && sides[0].qty >= 2) { const s = sides[0], o = Object.assign({}, s, { qty: 1, side: 'R' }); s.qty -= 1; s.side = 'L'; parts.splice(parts.indexOf(s) + 1, 0, o); }
+      else if (sides.length >= 2) { sides[0].side = 'L'; sides[1].side = 'R'; }
+    } else {
+      const k = parts.find(p => p.side === 'L' && p.qty >= 2 && !parts.some(q => q.side === 'R'));
+      if (k) { const o = Object.assign({}, k, { qty: 1, side: 'R' }); k.qty -= 1; parts.splice(parts.indexOf(k) + 1, 0, o); }
+    }
+    const kindOv = ov.kind || '';
+    const type = (H > 1200 || /UKINE/.test(mn)) ? 'ŪKINĖ' : /PAKABIN/.test(kindOv) ? 'PAKABINAMOS' : /PASTAT/.test(kindOv) ? 'PASTATOMOS' : (legs || legH) ? 'PASTATOMOS' : D >= 470 ? 'PASTATOMOS' : 'PAKABINAMOS';
+    // ---- doors / hinges
+    const nFronts = frontList.length;
+    const drawerFronts = Math.min(drawers, nFronts);
+    const endPanel = f => Math.abs(f.w - D) <= 3 && f.h >= H - 15;        // a front-material end panel (D wide, full height) — not a door
+    const doorList = frontList.filter(f => !endPanel(f)).sort((a, b) => b.h - a.h).slice(0, Math.max(0, frontList.filter(f => !endPanel(f)).length - drawerFronts));
+    let doors = doorList.length, hingeEst = false;
+    const hingeKey = tipon ? HW.tipon : HW.hinge;
+    const per = s => s <= 900 ? 2 : s <= 1500 ? 3 : s <= 2000 ? 4 : 5;
+    if (hinges) addHw(hingeKey, hinges);
+    else if (doors && !dish && !fridge && !cargo) {
+      const real = doorList.filter(d => !(oven && d.h < 250));
+      const n = real.reduce((s, d) => s + per(type === 'PAKABINAMOS' && d.w > d.h ? d.w : d.h), 0);
+      doors = real.length;
+      if (n) { addHw(hingeKey, n); hingeEst = true; warn.push(`Vyrių lentelėje nėra — įvertinta ${real.length} fas. → ${n} ${tipon ? 'TIP-ON ' : ''}vyriai. Patikrinkite.`); }
+    }
+    if (cargo) { addHw(HWX.cargo, 1); warn.push('Cargo mechanizmas brėžinyje nenurodytas — pridėtas 1 vnt. (nustatykite kainą)'); }
+    if (fridge && !hinges && doors) warn.push('Šaldytuvo fasadai — vyriai neskaičiuoti (tvirtinami prie prietaiso).');
+    if (legs) addHw(HW.legs, Math.round(legs / 4 * 100) / 100);
+    if (pi.shared) warn.push(`Fasadai bendri su ${pi.shared} — skaičiuojami ${pi.shared} spintelėje`);
+    if (pi.covers) warn.push(`Šios spintelės fasadai dengia ir ${pi.covers}`);
+    const shelves = parts.filter(p => p.cls === 'shelf').reduce((s, p) => s + p.qty, 0) || Math.max(0, parts.filter(p => p.cls === 'carc' && Math.min(p.L, p.W) >= 0.6 * (D - 20) && Math.max(p.L, p.W) >= W - 2 * t - 6 && Math.max(p.L, p.W) <= W - 2 * t + 1).reduce((s, p) => s + p.qty, 0) - 2);
+    const kind = dish ? 'Indaplovė' : fridge ? 'Šaldytuvo spintelė' : /BUIT/.test(mn) ? 'Technikos spintelė' : oven ? 'Orkaitės spintelė' : cargo ? 'Cargo' : /KRIAUKL/.test(mn) ? 'Kriauklės spintelė' : /KAMPIN/.test(mn) ? 'Kampinė' : /HOOD|GARTRAUK/.test(mn) ? 'Gartraukio spintelė' : /ANTRESOL/.test(mn) ? 'Antresolė' : type === 'ŪKINĖ' ? 'Aukšta' : type === 'PASTATOMOS' ? 'Apatinė' : 'Pakabinama';
+    const what = drawers && !doors ? `${drawers} stalč.` : doors && drawers ? `${doors} fas. + ${drawers} stalč.` : doors ? `${doors} fas.` : '';
+    return {
+      page: pageNo, sp: pi.sp, mname: pi.mname, name: `${pi.sp ? pi.sp + ' · ' : ''}${kind} ${Math.round(W)}${what ? ' · ' + what : ''}`,
+      type, W: Math.round(W), H: Math.round(H), D: Math.round(D), t, parts, hw: Object.keys(hw).map(k => ({ key: k, n: Math.round(hw[k] * 1000) / 1000 })),
+      doors, drawers, legs: legs ? 1 : 0, oven, dishwasher: dish, shelves, frontsEst: parts.some(p => p.est && p.cls === 'fac'), hingeEst, warn
+    };
+  }
+  function parseBrz(pages) {
+    const O = parseBrzOverview(pages), cabinets = [], skipped = [];
+    for (const pg of pages) {
+      const H = brzHeader(pg), rows = H ? parseBrzTable(pg) : null;
+      if (!rows || !rows.length) { skipped.push(pg.page); continue; }
+      const pi = brzPageInfo(pg, H.y);
+      const c = buildBrzCabinet(rows, pi, O.cabs[pi.sp] || {}, pg.page);
+      if (!c.parts.length && !c.hw.length) { skipped.push(pg.page); continue; }
+      cabinets.push(c);
+    }
+    const m = O.mats, info = { format: 'BREZINIAI' };
+    if (m.facade) info.facade = m.facade; if (m.carcass) info.carcass = m.carcass; if (m.back) info.back = m.back;
+    if (m.top) info.top = m.top; if (m.plinth) info.plinth = m.plinth; if (m.wall) info.wall = m.wall;
+    const pn = pages[0] && pages[0].items.map(i => i.s).join('\n').match(/Projektas:\s*([^\n]+)/);
+    if (pn) info.project = pn[1].trim();
+    return { info, cabinets, skipped };
+  }
+
   /** all pages → {info, cabinets, skipped} */
   function parseDrawing(pages) {
+    if (isBrz(pages)) return parseBrz(pages);
     const cabinets = [], skipped = [];
     for (const pg of pages) {
       const rows = parseTable(pg);
@@ -282,7 +487,7 @@
     };
   }
 
-  const API = { norm, parseTable, parseInfo, buildCabinet, parseDrawing, extractPages, calcParts, HW };
+  const API = { norm, parseTable, parseInfo, buildCabinet, parseDrawing, extractPages, calcParts, HW, HWX, parseBrz, parseBrzTable, colourName };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   root.DBImport = API;
   if (typeof document === 'undefined' || typeof root.calcCabinet !== 'function') return;   // Node / app not present
@@ -378,7 +583,7 @@
         <td><button class="icon-btn" onclick="DBImport.delHw(${i},${j})">✕</button></td></tr>`).join('');
     const openP = OPEN.has('impP_' + c.id) ? 'open' : '';
     return `
-      <div class="impsrc">📄 ${esc(c.impFile || L2('Brėžinys', 'Drawing'))} · ${L2('lapas', 'page')} ${c.impPage || '–'} · <b>${c.W}×${c.H}×${c.D}</b> mm</div>
+      <div class="impsrc">📄 ${esc(c.impFile || L2('Brėžinys', 'Drawing'))} · ${L2('lapas', 'page')} ${c.impPage || '–'}${c.impMacro ? ' · ' + esc((c.impSp ? c.impSp + ' ' : '') + c.impMacro) : ''} · <b>${c.W}×${c.H}×${c.D}</b> mm</div>
       ${warn}
       <div class="fgrid" style="margin-top:10px">${facF}${carcF}${hdfF}${useF}</div>
       <div class="checks" style="margin-top:8px">
@@ -463,7 +668,7 @@
     const d = IMP ? IMP.prices : defaults();
     const pick = `<div class="drop" id="dbImpDrop" onclick="document.getElementById('dbImpFile').click()">
         <div style="font-size:26px">📄</div><div><b>${L2('Įmeskite gamybos brėžinį (PDF)', 'Drop the production drawing (PDF)')}</b> ${L2('arba spauskite pasirinkti', 'or click to choose')}</div>
-        <div class="muted" style="font-size:12px;margin-top:4px">${L2('SolidWorks *_GAMYBA.pdf — viena spintelė lape, su detalių lentele', 'SolidWorks *_GAMYBA.pdf — one cabinet per page with the cut-list table')}</div></div>
+        <div class="muted" style="font-size:12px;margin-top:4px">${L2('SolidWorks *_GAMYBA.pdf arba makro *_BREZINIAI.pdf — viena spintelė lape, su detalių lentele', 'SolidWorks *_GAMYBA.pdf or macro *_BREZINIAI.pdf — one cabinet per page with the cut-list table')}</div></div>
         <input type="file" id="dbImpFile" accept="application/pdf,.pdf" hidden onchange="DBImport.file(this.files[0]);this.value=''">`;
     if (!IMP) { b.innerHTML = pick + (msg ? `<div class="note" style="margin-top:10px">${msg}</div>` : ''); wireDrop(); return; }
     const S = S_();
@@ -484,12 +689,13 @@
         <td style="font-size:12px">${hw || '–'}</td>
         <td class="num mono">€ ${eur(r.withHw)}</td></tr>`;
     }).join('');
-    const info = IMP.info, infoTxt = [['facade', L2('Fasadas', 'Facade')], ['carcass', L2('Karkasas', 'Carcass')], ['top', L2('Stalviršis', 'Worktop')], ['handles', L2('Rankenos', 'Handles')]].filter(([k]) => info[k]).map(([k, l]) => `${l}: <b>${esc(info[k])}</b>`).join(' · ');
+    const info = IMP.info, infoTxt = [['facade', L2('Fasadas', 'Facade')], ['carcass', L2('Karkasas', 'Carcass')], ['back', L2('Nugaros', 'Backs')], ['top', L2('Stalviršis', 'Worktop')], ['plinth', L2('Cokolis', 'Plinth')], ['wall', L2('Sienelė', 'Splashback')], ['handles', L2('Rankenos', 'Handles')]].filter(([k]) => info[k]).map(([k, l]) => `${l}: <b>${esc(colourName(info[k]))}</b>`).join(' · ');
     const unpriced = [...new Set(IMP.cabinets.filter(c => c.on).flatMap(c => c.hw.map(h => h.key)))].filter(k => !(+((S.rates.hw || {})[k]) > 0));
     const nEst = IMP.cabinets.filter(c => c.on && c.frontsEst).length;
     b.innerHTML = `
-      <div class="src">📄 <b>${esc(IMP.file)}</b> · ${IMP.cabinets.length} ${L2('spintelių', 'cabinets')}${IMP.skipped.length ? ` · ${L2('lapai be detalių lentelės', 'pages without a cut list')}: ${IMP.skipped.join(', ')}` : ''}${infoTxt ? '<br>' + infoTxt : ''}</div>
+      <div class="src">📄 <b>${esc(IMP.file)}</b>${IMP.info.format === 'BREZINIAI' ? ' · ' + L2('makro brėžiniai', 'macro drawings') : ''} · ${IMP.cabinets.length} ${L2('spintelių', 'cabinets')}${IMP.skipped.length ? ` · ${L2('lapai be detalių lentelės', 'pages without a cut list')}: ${IMP.skipped.join(', ')}` : ''}${infoTxt ? '<br>' + infoTxt : ''}</div>
       <div class="ibar">
+        ${IMP.info.format === 'BREZINIAI' && (IMP.info.top || IMP.info.plinth) ? `<div class="muted" style="font-size:12px;flex-basis:100%">${L2('Stalviršis, cokolis ir sienelė brėžinio lentelėse nekiekiuojami — pridėkite juos skiltyje „Papildomos plokštės“.', 'Worktop, plinth and splashback are not in the cut lists — add them separately.')}</div>` : ''}
         ${root.numField(L2('Fasadas €/m²', 'Facade €/m²'), d.fac, 'DBImport.price(\'fac\',this.value)', 'step="0.5"')}
         ${root.numField(L2('Karkasas €/m²', 'Carcass €/m²'), d.carc, 'DBImport.price(\'carc\',this.value)', 'step="0.5"')}
         ${root.numField('HDF €/m²', d.hdf, 'DBImport.price(\'hdf\',this.value)', 'step="0.5"')}
@@ -520,9 +726,10 @@
       const lib = await getPdfjs();
       const doc = await lib.getDocument({ data: new Uint8Array(await f.arrayBuffer()) }).promise;
       const res = parseDrawing(await extractPages(doc));
-      if (!res.cabinets.length) { IMP = null; drawModal(L2('Šiame PDF nerasta detalių lentelių (stulpelis „APRAŠYMAS"). Ar tai gamybos brėžinys iš SolidWorks?', 'No cut-list tables found in this PDF.')); return; }
+      if (!res.cabinets.length) { IMP = null; drawModal(L2('Šiame PDF nerasta detalių lentelių (stulpeliai „APRAŠYMAS" arba „Vnt. / L / W / T / Medžiaga"). Ar tai gamybos brėžinys iš SolidWorks?', 'No cut-list tables found in this PDF.')); return; }
       res.cabinets.forEach(c => c.on = true);
       IMP = Object.assign(res, { file: f.name, prices: defaults() });
+      if (/SPINT/i.test((res.info.project || '') + f.name) && !S_().cabinets.length) IMP.prices.use = 'SPINTA';
       drawModal();
     } catch (e) { console.error(e); IMP = null; drawModal(L2('Nepavyko perskaityti PDF: ', 'Could not read PDF: ') + esc(e.message || e)); }
   };
@@ -538,7 +745,7 @@
     if (!sel.length) { root.toast(L2('Nepažymėta nė viena spintelė', 'No cabinets selected')); return; }
     const used = new Set(sel.flatMap(c => c.hw.map(h => h.key)));
     S.rates.hwCustom = S.rates.hwCustom || [];
-    [HW.gola, HW.handle, HW.legs].forEach(k => { if (used.has(k) && !S.rates.hwCustom.some(h => h.name === k)) { S.rates.hwCustom.push({ name: k, cat: 'other' }); if (S.rates.hw[k] === undefined) S.rates.hw[k] = 0; } });
+    [HW.gola, HW.handle, HW.legs, HWX.rail, HWX.railHold, HWX.cargo].forEach(k => { if (used.has(k) && !S.rates.hwCustom.some(h => h.name === k)) { S.rates.hwCustom.push({ name: k, cat: 'other' }); if (S.rates.hw[k] === undefined) S.rates.hw[k] = 0; } });
     const replace = document.getElementById('dbImpReplace') && document.getElementById('dbImpReplace').checked;
     if (replace) S.cabinets = [];
     sel.forEach(c => {
@@ -548,11 +755,12 @@
         carcMat: '', carcPrice: d.carc, defFacadeMat: '', defFacadePrice: d.fac, hasBack: false, backType: 'hdf', backPrice: d.hdf,
         parts: c.parts.map(p => Object.assign({}, p)), hw: c.hw.map(h => ({ key: h.key, n: h.n })),
         doors: c.doors, drawers: c.drawers, oven: c.oven, legs: c.legs, impFile: IMP.file, impPage: c.page, impWarn: c.warn.slice(),
-        impFacName: (IMP.info && IMP.info.facade) || '', impCarcName: (IMP.info && IMP.info.carcass) || ''
+        dishwasher: !!c.dishwasher, shelves: c.shelves || 0, impSp: c.sp || '', impMacro: c.mname || '',
+        impFacName: colourName((IMP.info && IMP.info.facade) || ''), impCarcName: colourName((IMP.info && IMP.info.carcass) || '')
       });
       S.cabinets.push(cab);
     });
-    if (!S.projectName && IMP.file) { S.projectName = IMP.file.replace(/(_GAMYBA)?\.pdf$/i, ''); const pn = document.getElementById('projName'); if (pn) pn.value = S.projectName; }
+    if (!S.projectName && IMP.file) { S.projectName = (IMP.info && IMP.info.project) || IMP.file.replace(/(_GAMYBA|_BREZINIAI(_\d+)?)?\.pdf$/i, ''); const pn = document.getElementById('projName'); if (pn) pn.value = S.projectName; }
     API.close();
     if (root.renderRates) root.renderRates();
     root.renderCabinets(); root.recalc(); root.saveNow();
