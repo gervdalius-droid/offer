@@ -29,8 +29,18 @@
   }, root.WORKSHOP_CLOUD || {});
 
   var REF = CFG.url.replace(/^https?:\/\//, "").split(".")[0];
-  var KEY = "sb-" + REF + "-auth-token";      // supabase-js v2 storage key
+  // Two separate sign-ins on one computer:
+  //   default slot  → workshop apps (Nesting, Builder, ShopFlow); same key as supabase-js,
+  //                   so ShopFlow shares it.
+  //   "office" slot → Pasiūlymai, Prašymai, workers page. Its own session, so a workshop
+  //                   computer can stay signed in as a worker while office apps stay locked.
+  //                   It re-locks itself after OFFICE_IDLE minutes without use, unless this
+  //                   computer is marked as an office computer (hub tick "Biuro kompiuteris").
+  var SLOT = CFG.slot === "office" ? "office" : "";
+  var KEY = "sb-" + REF + "-auth-token" + (SLOT ? "-" + SLOT : "");   // default = supabase-js v2 key
   var LOCK = "lock:" + KEY;                   // supabase-js v2 lock name
+  var IDLE_KEY = "workshop.office.lastActive", OFFICE_PC = "workshop.officeComputer";
+  var OFFICE_IDLE = 10;                       // minutes
   var listeners = [];
   var meCache = null;
 
@@ -225,6 +235,30 @@
 
   // keep other tabs / apps in step
   root.addEventListener && root.addEventListener("storage", function (e) { if (e.key === KEY) { meCache = null; emit(); } });
+
+  /* ---- office slot: re-lock after inactivity ---- */
+  function officePc() { try { return localStorage.getItem(OFFICE_PC) === "1"; } catch (e) { return false; } }
+  function lastActive() { try { return +localStorage.getItem(IDLE_KEY) || 0; } catch (e) { return 0; } }
+  function touch() { try { localStorage.setItem(IDLE_KEY, String(Date.now())); } catch (e) {} }
+  function idleExpired() { return !officePc() && read() && Date.now() - lastActive() > OFFICE_IDLE * 60000; }
+  W.slot = SLOT;
+  W.officeComputer = function (on) {
+    if (on === undefined) return officePc();
+    try { if (on) localStorage.setItem(OFFICE_PC, "1"); else localStorage.removeItem(OFFICE_PC); } catch (e) {}
+    touch();
+  };
+  if (SLOT === "office") {
+    if (idleExpired()) { try { localStorage.removeItem(KEY); } catch (e) {} }   // stale before the page even starts
+    else if (read()) touch();
+    var _lw = W.loginEmail;
+    W.loginEmail = function (e, p) { return _lw(e, p).then(function (me) { touch(); return me; }); };
+    var last = 0;
+    ["pointerdown", "keydown", "wheel", "touchstart"].forEach(function (ev) {
+      root.addEventListener && root.addEventListener(ev, function () { var n = Date.now(); if (n - last > 15000) { last = n; touch(); } }, { passive: true, capture: true });
+    });
+    setInterval(function () { if (idleExpired()) { W.logout(true); emit(); } }, 30000);
+  }
+  W.officeIdleMinutes = OFFICE_IDLE;
 
   root.WorkshopAuth = W;
 })(typeof window !== "undefined" ? window : this);
