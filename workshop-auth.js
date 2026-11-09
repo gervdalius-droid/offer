@@ -150,7 +150,7 @@
     can: function (me, area) { return !!me && (!me.areas || me.areas.indexOf(area) >= 0); },
 
     /** Block the page until a member who may use `area` is signed in.
-        Resolves {display_name, role, areas}. Workers on a manager-only page see a
+        Resolves {display_name, role, areas}. Someone without access sees a neutral
         notice with a button to sign in as someone else (the session stays shared). */
     requireArea: function (area, opts) {
       opts = opts || {};
@@ -163,9 +163,9 @@
           d.setAttribute("role", "dialog"); d.setAttribute("aria-modal", "true");
           d.style.cssText = "position:fixed;inset:0;z-index:9999;background:#0f1211;display:flex;align-items:center;justify-content:center;padding:16px;font:15px system-ui,sans-serif";
           d.innerHTML = '<div style="background:#fff;color:#161a17;border-radius:12px;padding:22px;max-width:340px;display:flex;flex-direction:column;gap:12px">' +
-            '<b style="font-size:18px">' + (lt ? "Tik vadovams" : "Managers only") + '</b>' +
+            '<b style="font-size:18px">' + (lt ? "Nėra prieigos" : "No access") + '</b>' +
             '<span style="color:#5b625d">' + (lt ? "Prisijungta kaip " : "Signed in as ") + String(me.display_name).replace(/[<&>"]/g, "") +
-            (lt ? ". Šis puslapis prieinamas tik vadovams." : ". This page is for managers only.") + '</span>' +
+            (lt ? ". Ši programa jūsų paskyrai neatidaryta." : ". This app isn't open to your account.") + '</span>' +
             '<button type="button" style="padding:11px;border:0;border-radius:8px;background:#161a17;color:#fff;font-size:15px;cursor:pointer">' +
             (lt ? "Prisijungti kitu vardu" : "Sign in as someone else") + '</button></div>';
           document.body.appendChild(d);
@@ -182,9 +182,9 @@
       opts = opts || {};
       var lt = (opts.lang || "lt") === "lt";
       var T = lt ? { h: "Prisijungimas", name: "Vardas", pin: "PIN", go: "Prisijungti", skip: "Dirbti be sinchronizavimo",
-                     bad: "Neteisingas vardas arba PIN.", notm: "Jūsų paskyra neįtraukta į dirbtuvės sąrašą. Kreipkitės į vadovą.", net: "Nėra ryšio su serveriu." }
+                     bad: "Neteisingas vardas arba PIN.", notm: "Jūsų paskyra dar neaktyvi. Paprašykite, kad ją pridėtų darbuotojų puslapyje.", net: "Nėra ryšio su serveriu." }
                  : { h: "Sign in", name: "Name", pin: "PIN", go: "Sign in", skip: "Work without sync",
-                     bad: "Wrong name or PIN.", notm: "Your account is not on the workshop list. Ask the manager.", net: "Can't reach the server." };
+                     bad: "Wrong name or PIN.", notm: "Your account isn't active yet. Ask to be added on the workers page.", net: "Can't reach the server." };
       return new Promise(function (resolve) {
         var d = document.createElement("div");
         d.setAttribute("role", "dialog"); d.setAttribute("aria-modal", "true");

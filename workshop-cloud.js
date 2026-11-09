@@ -32,7 +32,7 @@
   window.cloudDelete = function (n, ts) { return W.token().then(function () { return _del(n, ts); }); };
   window.saveCloudCfg = window.testCloud = function () { return syncNow(); };
   window.disconnectCloud = function () {
-    if (!confirm(lt() ? "Atsijungti? Kitas vadovas galės prisijungti šiame kompiuteryje." : "Sign out? Another manager can then sign in on this computer.")) return;
+    if (!confirm(lt() ? "Atsijungti? Tada šiame kompiuteryje galės prisijungti kitas žmogus." : "Sign out? Someone else can then sign in on this computer.")) return;
     W.logout(); location.reload();
   };
   window.renderCloudStatus = function () {
@@ -92,7 +92,7 @@
   /* ---- start: managers only ---- */
   function start() {
     tidyPanel();
-    W.requireArea("offers", { lang: lt() ? "lt" : "en", title: lt() ? "Pasiūlymai — tik vadovams" : "Offers — managers only" })
+    W.requireArea("offers", { lang: lt() ? "lt" : "en", title: lt() ? "Pasiūlymai" : "Offers" })
       .then(function (me) {
         who = me; renderCloudStatus();
         return W.token().then(migrate).then(function (n) {
