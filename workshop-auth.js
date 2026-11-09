@@ -173,6 +173,7 @@
           d.setAttribute("role", "dialog"); d.setAttribute("aria-modal", "true");
           d.style.cssText = "position:fixed;inset:0;z-index:9999;background:#0f1211;display:flex;align-items:center;justify-content:center;padding:16px;font:15px system-ui,sans-serif";
           d.innerHTML = '<div style="background:#fff;color:#161a17;border-radius:12px;padding:22px;max-width:340px;display:flex;flex-direction:column;gap:12px">' +
+            '<span role="img" aria-label="Dėdės Baldai" style="display:block;width:52px;height:52px;background:#161a17;-webkit-mask:url(https://gervdalius-droid.github.io/hub/shared/logo-mask.png) center/contain no-repeat;mask:url(https://gervdalius-droid.github.io/hub/shared/logo-mask.png) center/contain no-repeat"></span>' +
             '<b style="font-size:18px">' + (lt ? "Nėra prieigos" : "No access") + '</b>' +
             '<span style="color:#5b625d">' + (lt ? "Prisijungta kaip " : "Signed in as ") + String(me.display_name).replace(/[<&>"]/g, "") +
             (lt ? ". Ši programa jūsų paskyrai neatidaryta." : ". This app isn't open to your account.") + '</span>' +
@@ -201,6 +202,7 @@
         d.style.cssText = "position:fixed;inset:0;z-index:9999;background:" + (opts.opaque ? "#0f1211" : "rgba(15,18,16,.72)") + ";display:flex;align-items:center;justify-content:center;padding:16px;font:15px system-ui,sans-serif";
         d.innerHTML =
           '<form style="background:#fff;color:#161a17;border-radius:12px;padding:22px;width:100%;max-width:320px;display:flex;flex-direction:column;gap:10px;box-shadow:0 20px 60px rgba(0,0,0,.35)">' +
+          '<span role="img" aria-label="Dėdės Baldai" style="display:block;width:52px;height:52px;background:#161a17;-webkit-mask:url(https://gervdalius-droid.github.io/hub/shared/logo-mask.png) center/contain no-repeat;mask:url(https://gervdalius-droid.github.io/hub/shared/logo-mask.png) center/contain no-repeat"></span>' +
           '<b style="font-size:18px">' + T.h + '</b>' +
           (opts.title ? '<span style="color:#5b625d;font-size:13px">' + String(opts.title).replace(/[<&>"]/g, "") + '</span>' : "") +
           '<label style="font-size:12px;color:#5b625d">' + T.name + '<input name="n" autocomplete="username" style="display:block;width:100%;box-sizing:border-box;margin-top:4px;padding:10px;border:1px solid #c9cec9;border-radius:8px;font-size:16px"></label>' +
