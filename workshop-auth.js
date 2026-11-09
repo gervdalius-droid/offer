@@ -25,7 +25,8 @@
     domain: "dedesbaldai.lt",   // synthetic email domain (no mail is sent)
     code: "gvs",                // workshop code, keeps the hidden email unique
     pinLen: 6,
-    pinSalt: "_dedes"           // PIN + salt = the real password (Supabase needs 6+ chars)
+    pinSalt: "",                // password = the 6-digit PIN itself
+    legacySalt: "_dedes"        // accounts made with "PIN_dedes" still work
   }, root.WORKSHOP_CLOUD || {});
 
   var REF = CFG.url.replace(/^https?:\/\//, "").split(".")[0];
@@ -101,7 +102,11 @@
 
     /** name + PIN → session. Rejects with a readable message. */
     login: function (name, pin) {
-      return W.loginEmail(emailFor(name), String(pin) + CFG.pinSalt);
+      var email = emailFor(name), p = String(pin);
+      return W.loginEmail(email, p + CFG.pinSalt).catch(function (e) {
+        if (e.status !== 400 || !CFG.legacySalt) throw e;          // wrong password → try the older "PIN_dedes" form
+        return W.loginEmail(email, p + CFG.legacySalt);
+      });
     },
     loginEmail: function (email, password) {
       return locked(function () { return tokenCall("password", { email: email, password: password }); })
